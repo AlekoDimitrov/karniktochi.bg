@@ -1,15 +1,31 @@
 ---
 import { bg } from '../i18n/bg';
 ---
-<div class="bubble" data-bubble>
-  <img class="bubble__duck" data-duck src="/images/duck.webp" alt={bg.hero.duckAlt} width="600" height="600" />
-  <div class="bubble__gloss bubble__gloss--a"></div>
-  <div class="bubble__gloss bubble__gloss--b"></div>
+<div class="bubble-wrap">
+  <div class="bubble" data-bubble>
+    <img class="bubble__duck" data-duck src="/images/duck.webp" alt={bg.hero.duckAlt} width="600" height="600" />
+    <div class="bubble__gloss bubble__gloss--a"></div>
+    <div class="bubble__gloss bubble__gloss--b"></div>
+  </div>
+  <button
+    type="button"
+    class="bubble__toggle"
+    data-bubble-toggle
+    data-paused="false"
+    aria-pressed="false"
+    aria-label={bg.hero.pauseAnimation}
+    data-label-pause={bg.hero.pauseAnimation}
+    data-label-play={bg.hero.playAnimation}
+  >
+    <svg class="icon-pause" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+    <svg class="icon-play" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" /></svg>
+  </button>
 </div>
 
 <script>
   import { initBubble } from '../scripts/bubble';
   const bubble = document.querySelector<HTMLElement>('[data-bubble]');
   const duck = bubble?.querySelector<HTMLElement>('[data-duck]');
-  if (bubble && duck) initBubble(bubble, duck);
+  const toggle = document.querySelector<HTMLButtonElement>('[data-bubble-toggle]');
+  if (bubble && duck) initBubble(bubble, duck, toggle);
 </script>

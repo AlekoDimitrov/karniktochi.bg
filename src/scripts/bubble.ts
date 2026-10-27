@@ -1,8 +1,12 @@
 // Hero bubble: the duck bounces around inside the glass, spins on impact, and reacts to the cursor.
 // Units: positions and velocities are in bubble radii (R = 1), so it scales with any screen size.
 
-export function initBubble(bubble: HTMLElement, duck: HTMLElement) {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTMLButtonElement | null) {
+  // If the visitor's system asks for reduced motion, run a calm version (slow drift only: no spin,
+  // squash or cursor reactions). Everyone gets a pause button (WCAG 2.2.2).
+  const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const speed = calm ? 0.35 : 1;
+  let paused = false;
 
   const rr = 0.4; // duck collision radius
   const lim = 1 - rr; // how far the duck's centre may travel
@@ -17,11 +21,13 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement) {
   const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
   const onMove = (e: PointerEvent) => {
+    if (calm) return;
     ptr.on = e.pointerType !== 'touch' || e.buttons > 0;
     ptr.cx = e.clientX;
     ptr.cy = e.clientY;
   };
   const onDown = (e: PointerEvent) => {
+    if (calm || (e.target as Element | null)?.closest?.('[data-bubble-toggle]')) return;
     ptr.on = true;
     ptr.cx = e.clientX;
     ptr.cy = e.clientY;
@@ -36,7 +42,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement) {
 
   const loop = (t: number) => {
     raf = requestAnimationFrame(loop);
-    const dt = Math.min(0.05, last ? (t - last) / 1000 : 0.016);
+    const dt = Math.min(0.05, last ? (t - last) / 1000 : 0.016) * speed;
     last = t;
     const R = bubble.clientWidth / 2;
     if (R <= 0) return;
@@ -116,6 +122,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement) {
       y = ny * lim;
     }
 
+    if (calm) { w = 0; sv = 0; s = 0; }
     w *= Math.exp(-0.35 * dt);
     th += w * dt;
     sv += (-180 * s - 12 * sv) * dt;
@@ -136,7 +143,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement) {
       ` rotate(${ang.toFixed(4)}rad) scale(${(1 - s).toFixed(4)}, ${(1 + s).toFixed(4)}) rotate(${(-ang).toFixed(4)}rad)`;
   };
 
-  const start = () => { if (!raf) { last = 0; raf = requestAnimationFrame(loop); } };
+  const start = () => { if (!raf && !paused && visible) { last = 0; raf = requestAnimationFrame(loop); } };
   const stop = () => { if (raf) { cancelAnimationFrame(raf); raf = 0; } };
 
   // Do not burn battery while the hero is scrolled out of view.
@@ -145,5 +152,15 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement) {
     visible ? start() : stop();
   });
   io.observe(bubble);
+
+  // Pause / play button.
+  toggle?.addEventListener('click', () => {
+    paused = !paused;
+    toggle.setAttribute('aria-pressed', String(paused));
+    toggle.dataset.paused = String(paused);
+    toggle.setAttribute('aria-label', paused ? (toggle.dataset.labelPlay ?? '') : (toggle.dataset.labelPause ?? ''));
+    paused ? stop() : start();
+  });
+
   start();
 }

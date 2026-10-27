@@ -31,6 +31,8 @@ export const bg = {
     shop: 'Към ножовете',
     sharpening: 'Услуга заточване',
     duckAlt: 'Жълто патенце с нож',
+    pauseAnimation: 'Спри анимацията',
+    playAnimation: 'Пусни анимацията',
   },
   home: {
     byKind: 'Разгледай по вид',
