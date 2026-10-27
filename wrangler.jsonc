@@ -16,7 +16,7 @@
 			"binding": "DB",
 			"database_name": "karniktochi",
 			// Replace with the id printed by `npx wrangler d1 create karniktochi`.
-			"database_id": "00000000-0000-0000-0000-000000000000",
+			"database_id": "1e85b95d-2f5b-4ea9-a6ef-d326b25f176c",
 			"migrations_dir": "migrations"
 		}
 	],
