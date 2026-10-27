@@ -10,5 +10,32 @@
 	},
 	"observability": {
 		"enabled": true
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "karniktochi",
+			// Replace with the id printed by `npx wrangler d1 create karniktochi`.
+			"database_id": "00000000-0000-0000-0000-000000000000",
+			"migrations_dir": "migrations"
+		}
+	],
+	"secrets": {
+		"required": ["RESEND_API_KEY"]
+	},
+	// Plain settings. Secrets (RESEND_API_KEY) are set with `npx wrangler secret put` and `.dev.vars` locally.
+	"vars": {
+		// "true" offers bank transfer at checkout and shows the bank details below. Anything else turns it off.
+		"ENABLE_BANK_TRANSFER": "false",
+		"BANK_IBAN": "",
+		"BANK_BIC": "",
+		"BANK_HOLDER": "",
+		// Where new-order notifications go.
+		"SHOP_NOTIFY_EMAIL": "",
+		// Sender for all emails. The domain must be verified in Resend.
+		"EMAIL_FROM": "Карник Точи <porachki@karniktochi.com>",
+		// Cloudflare Access (protects /admin): team domain like "yourteam.cloudflareaccess.com" and the app's AUD tag.
+		"ACCESS_TEAM_DOMAIN": "",
+		"ACCESS_AUD": ""
 	}
 }

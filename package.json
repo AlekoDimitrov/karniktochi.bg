@@ -10,7 +10,8 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "generate-types": "wrangler types"
+    "generate-types": "wrangler types --strict-vars=false",
+    "test": "vitest run"
   },
   "dependencies": {
     "@astrojs/cloudflare": "^14.4.2",
@@ -18,5 +19,9 @@
     "@fontsource-variable/rubik": "^5.3.0",
     "astro": "^7.4.2",
     "wrangler": "^4.153.0"
+  },
+  "devDependencies": {
+    "miniflare": "^5.20261023.0-beta",
+    "vitest": "^5.0.5"
   }
 }
