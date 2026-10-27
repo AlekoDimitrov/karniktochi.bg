@@ -1,0 +1,42 @@
+---
+import '@fontsource-variable/rubik/wght.css';
+import '@fontsource-variable/golos-text/wght.css';
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { bg } from '../i18n/bg';
+
+interface Props {
+  title?: string;
+  description?: string;
+  active?: 'home' | 'shop';
+}
+const { title = bg.defaultTitle, description = bg.defaultDescription, active } = Astro.props;
+// Until LAUNCH=1 is set at build time, ask search engines to stay away (see CLAUDE.md launch checklist).
+const noindex = import.meta.env.LAUNCH !== '1';
+---
+<!doctype html>
+<html lang="bg">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <meta name="theme-color" content="#27403b" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="bg_BG" />
+    <meta property="og:site_name" content={bg.siteName} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  </head>
+  <body>
+    <a class="skip" href="#main">{bg.product.skip}</a>
+    <Header active={active} />
+    <main id="main"><slot /></main>
+    <Footer />
+  </body>
+</html>

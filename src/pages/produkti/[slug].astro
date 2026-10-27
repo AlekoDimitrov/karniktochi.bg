@@ -1,0 +1,99 @@
+---
+import { Image } from 'astro:assets';
+import Layout from '../../layouts/Layout.astro';
+import ProductCard from '../../components/ProductCard.astro';
+import { bg } from '../../i18n/bg';
+import { formatPrice } from '../../lib/format';
+import { getProducts } from '../../lib/products';
+
+export async function getStaticPaths() {
+  const products = await getProducts();
+  return products.map((product) => ({ params: { slug: product.id }, props: { product } }));
+}
+
+const { product } = Astro.props;
+const d = product.data;
+const all = await getProducts();
+const related = all
+  .filter((p) => p.id !== product.id)
+  .sort((a, b) => Number(b.data.category === d.category) - Number(a.data.category === d.category))
+  .slice(0, 4);
+
+const specs = [
+  [bg.product.specs.type, d.type],
+  [bg.product.specs.steel, d.steel],
+  [bg.product.specs.blade, d.bladeLengthMm ? `${d.bladeLengthMm} мм` : undefined],
+  [bg.product.specs.handle, d.handle],
+  [bg.product.specs.weight, d.weightG ? `${d.weightG} г` : undefined],
+].filter(([, v]) => v) as [string, string][];
+
+const [main, ...rest] = d.images;
+const inStock = d.stock > 0;
+---
+<Layout title={`${d.name} — ${bg.siteName}`} description={d.summary} active="shop">
+  <div class="container">
+    <div class="crumb"><a href="/produkti/">{bg.product.back}</a></div>
+    <div class="pdp">
+      <div class="pdp__gallery">
+        <div class="photo">
+          {d.placeholder && <span class="ribbon">{bg.product.demo}</span>}
+          {
+            main ? (
+              <Image src={main} alt={d.name} widths={[480, 720, 960]} sizes="(min-width: 900px) 520px, 100vw" loading="eager" />
+            ) : (
+              <span>{bg.product.mainPhoto}</span>
+            )
+          }
+        </div>
+        <div class="thumbs">
+          {
+            rest.length
+              ? rest.slice(0, 3).map((img) => (
+                  <div class="photo"><Image src={img} alt={d.name} widths={[160, 320]} sizes="160px" /></div>
+                ))
+              : bg.product.thumbs.map((t) => <div class="photo">{t}</div>)
+          }
+        </div>
+      </div>
+
+      <div class="pdp__info">
+        <span class="pdp__brand">{d.brand.toUpperCase()}</span>
+        <h1>{d.name}</h1>
+        <div class="pdp__price">
+          <strong>{formatPrice(d.priceCents)}</strong>
+          <span>{bg.product.vatIncluded} · {inStock ? bg.product.inStock : bg.product.outOfStock}</span>
+        </div>
+        <p class="pdp__summary">{d.summary}</p>
+        <div class="pdp__buy">
+          <!-- Cart logic comes in the next phase; the button is a placeholder until then. -->
+          <button type="button" class="btn btn--add" data-add-to-cart={product.id} disabled={!inStock}>
+            {inStock ? bg.product.add : bg.product.outOfStock}
+          </button>
+          <small>{bg.product.payNote}</small>
+        </div>
+        {
+          specs.length > 0 && (
+            <dl class="specs">
+              {specs.map(([k, v]) => <div><dt>{k}</dt><dd>{v}</dd></div>)}
+            </dl>
+          )
+        }
+        <div class="care">
+          <strong>{bg.product.careTitle}</strong>
+          <span>{bg.product.careText}</span>
+        </div>
+        <div class="pdp__facts">
+          <span>{bg.product.returns}</span>
+          <span>{bg.product.shipsFrom}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="related section" style="padding: 72px 0 88px">
+    <div class="container">
+      <h2 style="margin-bottom: 32px">{bg.product.related}</h2>
+      <div class="grid">{related.map((p) => <ProductCard product={p} />)}</div>
+    </div>
+  </section>
+</Layout>

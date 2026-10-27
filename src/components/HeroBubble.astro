@@ -1,0 +1,15 @@
+---
+import { bg } from '../i18n/bg';
+---
+<div class="bubble" data-bubble>
+  <img class="bubble__duck" data-duck src="/images/duck.webp" alt={bg.hero.duckAlt} width="600" height="600" />
+  <div class="bubble__gloss bubble__gloss--a"></div>
+  <div class="bubble__gloss bubble__gloss--b"></div>
+</div>
+
+<script>
+  import { initBubble } from '../scripts/bubble';
+  const bubble = document.querySelector<HTMLElement>('[data-bubble]');
+  const duck = bubble?.querySelector<HTMLElement>('[data-duck]');
+  if (bubble && duck) initBubble(bubble, duck);
+</script>

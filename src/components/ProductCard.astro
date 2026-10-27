@@ -1,0 +1,31 @@
+---
+import { Image } from 'astro:assets';
+import { bg } from '../i18n/bg';
+import { formatPrice } from '../lib/format';
+import type { Product } from '../lib/products';
+
+interface Props { product: Product }
+const { product } = Astro.props;
+const d = product.data;
+const img = d.images[0];
+---
+<a class="card" href={`/produkti/${product.id}/`}>
+  <div class="card__photo">
+    {d.placeholder && <span class="ribbon">{bg.product.demo}</span>}
+    {
+      img ? (
+        <Image src={img} alt={d.name} widths={[320, 480, 640]} sizes="(min-width: 1000px) 266px, 50vw" />
+      ) : (
+        <span>{bg.product.photo}, 4:5</span>
+      )
+    }
+  </div>
+  <div class="card__meta">
+    <span class="card__brand">{d.brand.toUpperCase()}</span>
+    <span class="card__name">{d.name}</span>
+    <span class="card__price">
+      {formatPrice(d.priceCents)}
+      {d.stock === 0 && <span class="sold-out"> · {bg.product.outOfStock}</span>}
+    </span>
+  </div>
+</a>

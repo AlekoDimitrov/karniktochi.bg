@@ -1,16 +1,82 @@
 ---
----
+import Layout from '../layouts/Layout.astro';
+import HeroBubble from '../components/HeroBubble.astro';
+import ProductCard from '../components/ProductCard.astro';
+import { bg, categoryIds } from '../i18n/bg';
+import { getProducts } from '../lib/products';
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+const latest = (await getProducts()).slice(0, 4);
+---
+<Layout active="home">
+  <section class="hero on-dark">
+    <div class="hero__inner">
+      <div class="hero__copy">
+        <span class="eyebrow">{bg.hero.eyebrow}</span>
+        <h1>{bg.hero.title}</h1>
+        <p class="hero__text">{bg.hero.text}</p>
+        <div class="hero__cta">
+          <a class="btn btn--accent" href="/produkti/">{bg.hero.shop}</a>
+          <a class="btn btn--ghost" href="#sharpening">{bg.hero.sharpening}</a>
+        </div>
+      </div>
+      <div class="hero__visual">
+        <HeroBubble />
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--tight-top" style="padding-top: 80px; padding-bottom: 32px">
+    <div class="container">
+      <h2 style="margin-bottom: 32px">{bg.home.byKind}</h2>
+      <div class="tiles">
+        {
+          categoryIds.map((id) => (
+            <a class="tile" href={`/kategoriya/${id}/`}>
+              <span class="tile__title">{bg.categories[id]}</span>
+              <span class="tile__go">{bg.home.browse}</span>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top: 56px; padding-bottom: 88px">
+    <div class="container">
+      <div class="section__head">
+        <h2>{bg.home.newIn}</h2>
+        <a class="link-orange" href="/produkti/">{bg.home.allKnives}</a>
+      </div>
+      <div class="grid">
+        {latest.map((p) => <ProductCard product={p} />)}
+      </div>
+    </div>
+  </section>
+
+  <section class="band-purple on-dark section" id="workshop">
+    <div class="container band__inner">
+      <div class="band__photo">{bg.home.workshopPhoto}<br />Ръце върху камъка, 3:2</div>
+      <div class="band__copy">
+        <span class="eyebrow">{bg.home.workshopEyebrow}</span>
+        <h2>{bg.home.workshopTitle}</h2>
+        <p>{bg.home.workshopText}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="sharpening" style="padding: 88px 0">
+    <div class="container sharpen">
+      <div class="sharpen__copy">
+        <h2>{bg.home.sharpeningTitle}</h2>
+        <p>{bg.home.sharpeningText}</p>
+      </div>
+      <a class="btn btn--orange" href="#sharpening">{bg.home.sharpeningCta}</a>
+    </div>
+  </section>
+
+  <section class="trust">
+    <div class="trust__inner">
+      {bg.home.trust.map((t) => <span>{t}</span>)}
+    </div>
+  </section>
+</Layout>

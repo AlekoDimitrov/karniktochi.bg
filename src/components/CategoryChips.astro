@@ -1,0 +1,15 @@
+---
+import { bg, categoryIds, type CategoryId } from '../i18n/bg';
+interface Props { current?: CategoryId }
+const { current } = Astro.props;
+---
+<div class="chips">
+  <a class="chip" href="/produkti/" aria-current={current ? undefined : 'page'}>{bg.shop.all}</a>
+  {
+    categoryIds.map((id) => (
+      <a class="chip" href={`/kategoriya/${id}/`} aria-current={current === id ? 'page' : undefined}>
+        {bg.categoriesShort[id]}
+      </a>
+    ))
+  }
+</div>

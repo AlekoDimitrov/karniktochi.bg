@@ -1,0 +1,38 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import ProductCard from '../../components/ProductCard.astro';
+import CategoryChips from '../../components/CategoryChips.astro';
+import { bg, categoryIds, type CategoryId } from '../../i18n/bg';
+import { getProducts } from '../../lib/products';
+
+export function getStaticPaths() {
+  return categoryIds.map((category) => ({ params: { category } }));
+}
+
+const category = Astro.params.category as CategoryId;
+const products = (await getProducts()).filter((p) => p.data.category === category);
+const name = bg.categories[category];
+---
+<Layout title={`${name} — ${bg.siteName}`} active="shop">
+  <section class="page-title on-dark">
+    <div class="page-title__inner">
+      <span class="eyebrow">{bg.shop.eyebrow}</span>
+      <h1>{name}</h1>
+    </div>
+  </section>
+  <div class="container" style="padding-top: 32px">
+    <div class="toolbar">
+      <CategoryChips current={category} />
+      <span class="toolbar__sort">{bg.shop.sort}</span>
+    </div>
+  </div>
+  <div class="container" style="padding-top: 40px; padding-bottom: 96px">
+    {
+      products.length ? (
+        <div class="grid">{products.map((p) => <ProductCard product={p} />)}</div>
+      ) : (
+        <p>{bg.shop.empty}</p>
+      )
+    }
+  </div>
+</Layout>

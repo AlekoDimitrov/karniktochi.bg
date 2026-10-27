@@ -1,0 +1,18 @@
+---
+import { bg } from '../i18n/bg';
+interface Props { active?: 'home' | 'shop' }
+const { active } = Astro.props;
+---
+<header class="site-header">
+  <div class="site-header__inner">
+    <a class="logo" href="/">
+      <img src="/images/logo.webp" alt={`${bg.siteName} — начало`} width="150" height="150" />
+    </a>
+    <nav class="nav" aria-label="Основна навигация">
+      <a href="/produkti/" aria-current={active === 'shop' ? 'page' : undefined}>{bg.nav.knives}</a>
+      <a href="/#sharpening">{bg.nav.sharpening}</a>
+      <a href="/#workshop">{bg.nav.about}</a>
+      <a class="nav__cart" href="/produkti/">{bg.nav.cart} (0)</a>
+    </nav>
+  </div>
+</header>

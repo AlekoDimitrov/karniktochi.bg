@@ -1,0 +1,31 @@
+---
+import { bg, categoryIds } from '../i18n/bg';
+const f = bg.footer;
+---
+<footer class="site-footer">
+  <div class="site-footer__inner">
+    <div class="site-footer__col site-footer__col--about">
+      <img src="/images/logo.webp" alt={bg.siteName} width="96" height="96" loading="lazy" />
+      <p class="small">{f.about}</p>
+      <p class="small">{f.address}</p>
+    </div>
+    <div class="site-footer__col">
+      <h3>{f.shop}</h3>
+      {categoryIds.map((id) => <a href={`/kategoriya/${id}/`}>{bg.categoriesShort[id]}</a>)}
+    </div>
+    <div class="site-footer__col">
+      <h3>{f.info}</h3>
+      <!-- TODO: link these once the legal pages exist -->
+      <a href="#">{f.shipping}</a>
+      <a href="#">{f.returns}</a>
+      <a href="#">{f.terms}</a>
+      <a href="#">{f.privacy}</a>
+    </div>
+    <div class="site-footer__col">
+      <h3>{f.contact}</h3>
+      <span class="small">{f.email}</span>
+      <span class="small">{f.phone}</span>
+    </div>
+  </div>
+  <div class="site-footer__legal">{f.copyright}</div>
+</footer>
