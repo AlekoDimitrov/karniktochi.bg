@@ -45,7 +45,8 @@ const t = bg.cart;
 </Layout>
 
 <script>
-  import { onCartChange, removeFromCart, setQty } from '../../scripts/cart';
+  import { onCartChange, readCart, removeFromCart, setQty, type CartLine } from '../../scripts/cart';
+  import { liveStock } from '../../scripts/live-stock';
   import { formatPrice } from '../../lib/format';
   import type { CatalogItem } from '../../lib/products';
 
@@ -57,7 +58,7 @@ const t = bg.cart;
   const summary = document.querySelector<HTMLElement>('[data-cart-summary]')!;
   const totalEl = document.querySelector<HTMLElement>('[data-cart-total]')!;
 
-  onCartChange((lines) => {
+  const render = (lines: CartLine[]) => {
     list.replaceChildren();
     let total = 0;
     for (const line of lines) {
@@ -85,11 +86,15 @@ const t = bg.cart;
       name.href = `/produkti/${p.id}/`;
       q('[data-price]').textContent = formatPrice(p.priceCents * line.qty);
       qty.value = String(line.qty);
-      qty.max = String(p.stock);
-      if (line.qty >= p.stock) {
-        warn.textContent = t.maxStock;
-        warn.hidden = false;
+      if (p.stock <= 0) {
+        warn.textContent = t.soldOut;
+        qty.disabled = true;
+      } else {
+        qty.max = String(p.stock);
+        if (line.qty > p.stock) warn.textContent = t.overStock.replace('{n}', String(p.stock));
+        else if (line.qty === p.stock) warn.textContent = t.maxStock;
       }
+      warn.hidden = !warn.textContent;
       qty.addEventListener('change', () => {
         const n = Math.floor(Number(qty.value));
         if (n > 0) setQty(line.id, Math.min(n, p.stock));
@@ -101,5 +106,13 @@ const t = bg.cart;
     empty.hidden = lines.length > 0;
     summary.hidden = lines.length === 0;
     totalEl.textContent = formatPrice(total);
+  };
+
+  onCartChange(render);
+  // The catalog above has build-time stock; replace it with live stock and redraw.
+  liveStock().then((stock) => {
+    if (!stock) return;
+    for (const [id, n] of Object.entries(stock)) if (catalog[id]) catalog[id].stock = n;
+    render(readCart());
   });
 </script>

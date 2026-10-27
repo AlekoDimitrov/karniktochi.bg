@@ -61,15 +61,31 @@ const inStock = d.stock > 0;
         <h1>{d.name}</h1>
         <div class="pdp__price">
           <strong>{formatPrice(d.priceCents)}</strong>
-          <span>{bg.product.vatIncluded} · {inStock ? bg.product.inStock : bg.product.outOfStock}</span>
+          <span>
+            {bg.product.vatIncluded} ·
+            <span data-stock-status data-in={bg.product.inStock} data-out={bg.product.outOfStock}>
+              {inStock ? bg.product.inStock : bg.product.outOfStock}
+            </span>
+          </span>
         </div>
         <p class="pdp__summary">{d.summary}</p>
         <div class="pdp__buy">
-          <button type="button" class="btn btn--add" data-add-to-cart={product.id} data-stock={d.stock} disabled={!inStock}>
+          <button
+            type="button"
+            class="btn btn--add"
+            data-add-to-cart={product.id}
+            data-stock={d.stock}
+            data-label-add={bg.product.add}
+            data-label-out={bg.product.outOfStock}
+            disabled={!inStock}
+          >
             {inStock ? bg.product.add : bg.product.outOfStock}
           </button>
           <p class="pdp__added" data-added hidden role="status">
             {bg.product.added} <a href="/kolichka/">{bg.product.toCart}</a>
+          </p>
+          <p class="pdp__added" data-max hidden role="status">
+            {bg.cart.maxStock} <a href="/kolichka/">{bg.product.toCart}</a>
           </p>
           <small>{bg.product.payNote}</small>
         </div>
@@ -101,11 +117,30 @@ const inStock = d.stock > 0;
 </Layout>
 
 <script>
-  import { addToCart } from '../../scripts/cart';
+  import { addToCart, readCart } from '../../scripts/cart';
+  import { liveStock } from '../../scripts/live-stock';
   const btn = document.querySelector<HTMLButtonElement>('[data-add-to-cart]');
+  const status = document.querySelector<HTMLElement>('[data-stock-status]');
   const added = document.querySelector<HTMLElement>('[data-added]');
-  btn?.addEventListener('click', () => {
-    addToCart(btn.dataset.addToCart!, 1, Number(btn.dataset.stock));
-    if (added) added.hidden = false;
-  });
+  const max = document.querySelector<HTMLElement>('[data-max]');
+
+  if (btn) {
+    const id = btn.dataset.addToCart!;
+    // data-stock caps how many can go in the cart; it starts as build-time stock and is replaced by live stock.
+    btn.addEventListener('click', () => {
+      const before = readCart().find((l) => l.id === id)?.qty ?? 0;
+      const after = addToCart(id, 1, Number(btn.dataset.stock));
+      if (added) added.hidden = after === before;
+      if (max) max.hidden = after !== before;
+    });
+
+    liveStock().then((stock) => {
+      const n = stock?.[id];
+      if (n === undefined) return;
+      btn.dataset.stock = String(n);
+      btn.disabled = n <= 0;
+      btn.textContent = (n > 0 ? btn.dataset.labelAdd : btn.dataset.labelOut) ?? '';
+      if (status) status.textContent = (n > 0 ? status.dataset.in : status.dataset.out) ?? '';
+    });
+  }
 </script>

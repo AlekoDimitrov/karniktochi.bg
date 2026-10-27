@@ -9,7 +9,7 @@ const { product } = Astro.props;
 const d = product.data;
 const img = d.images[0];
 ---
-<a class="card" href={`/produkti/${product.id}/`}>
+<a class="card" href={`/produkti/${product.id}/`} data-product-id={product.id}>
   <div class="card__photo">
     {d.placeholder && <span class="ribbon">{bg.product.demo}</span>}
     {
@@ -25,7 +25,20 @@ const img = d.images[0];
     <span class="card__name">{d.name}</span>
     <span class="card__price">
       {formatPrice(d.priceCents)}
-      {d.stock === 0 && <span class="sold-out"> · {bg.product.outOfStock}</span>}
+      <span class="sold-out" data-sold-out hidden={d.stock > 0}> · {bg.product.outOfStock}</span>
     </span>
   </div>
 </a>
+
+<script>
+  import { liveStock } from '../scripts/live-stock';
+  // Show or hide "Изчерпан" on every card according to live stock.
+  liveStock().then((stock) => {
+    if (!stock) return;
+    document.querySelectorAll<HTMLElement>('[data-product-id]').forEach((card) => {
+      const n = stock[card.dataset.productId!];
+      const label = card.querySelector<HTMLElement>('[data-sold-out]');
+      if (n !== undefined && label) label.hidden = n > 0;
+    });
+  });
+</script>
