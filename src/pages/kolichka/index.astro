@@ -17,7 +17,12 @@ const t = bg.cart;
       <div class="cart-total" data-cart-summary hidden>
         <div class="cart-total__row"><span>{t.total}</span><strong data-cart-total></strong></div>
         <small>{t.shippingNote}</small>
-        <a class="btn btn--add" href="/porachka/">{t.checkout}</a>
+        <div class="cart-fixed" data-cart-fixed role="status" hidden></div>
+        <div class="cart-blocked" data-cart-blocked hidden>
+          <p class="form-error" id="cart-blocked-msg">{t.blocked}</p>
+          <button type="button" class="btn btn--outline" data-cart-fix>{t.fix}</button>
+        </div>
+        <a class="btn btn--add" href="/porachka/" data-checkout-link>{t.checkout}</a>
       </div>
     </div>
   </div>
@@ -45,24 +50,40 @@ const t = bg.cart;
 </Layout>
 
 <script>
-  import { onCartChange, readCart, removeFromCart, setQty, type CartLine } from '../../scripts/cart';
+  import { onCartChange, readCart, removeFromCart, setCart, setQty, type CartLine } from '../../scripts/cart';
   import { liveStock } from '../../scripts/live-stock';
+  import { cartProblems, fixCart } from '../../lib/cart-stock';
   import { formatPrice } from '../../lib/format';
   import type { CatalogItem } from '../../lib/products';
 
   const catalog: Record<string, CatalogItem> = JSON.parse(document.getElementById('catalog')!.textContent!);
   const t = JSON.parse(document.getElementById('cart-text')!.textContent!);
-  const list = document.querySelector<HTMLElement>('[data-cart-lines]')!;
-  const tpl = document.querySelector<HTMLTemplateElement>('#cart-line')!;
-  const empty = document.querySelector<HTMLElement>('[data-cart-empty]')!;
-  const summary = document.querySelector<HTMLElement>('[data-cart-summary]')!;
-  const totalEl = document.querySelector<HTMLElement>('[data-cart-total]')!;
+  const $ = <T extends HTMLElement>(s: string) => document.querySelector<T>(s)!;
+  const list = $('[data-cart-lines]');
+  const tpl = $<HTMLTemplateElement>('#cart-line');
+  const empty = $('[data-cart-empty]');
+  const summary = $('[data-cart-summary]');
+  const totalEl = $('[data-cart-total]');
+  const blocked = $('[data-cart-blocked]');
+  const fixedEl = $('[data-cart-fixed]');
+  const checkoutLink = $<HTMLAnchorElement>('[data-checkout-link]');
+
+  // Available count per product: build-time stock until live stock arrives.
+  const stock = (): Record<string, number> =>
+    Object.fromEntries(Object.values(catalog).map((p) => [p.id, p.stock]));
+
+  // While the cart has problems the checkout link stays focusable but does nothing.
+  checkoutLink.addEventListener('click', (e) => {
+    if (checkoutLink.getAttribute('aria-disabled') === 'true') e.preventDefault();
+  });
 
   const render = (lines: CartLine[]) => {
     list.replaceChildren();
+    const problems = new Map(cartProblems(lines, stock()).map((p) => [p.id, p]));
     let total = 0;
     for (const line of lines) {
       const p = catalog[line.id];
+      const problem = problems.get(line.id);
       const li = tpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
       const q = <T extends Element>(s: string) => li.querySelector<T>(s)!;
       const img = q<HTMLImageElement>('img');
@@ -86,14 +107,10 @@ const t = bg.cart;
       name.href = `/produkti/${p.id}/`;
       q('[data-price]').textContent = formatPrice(p.priceCents * line.qty);
       qty.value = String(line.qty);
-      if (p.stock <= 0) {
-        warn.textContent = t.soldOut;
-        qty.disabled = true;
-      } else {
-        qty.max = String(p.stock);
-        if (line.qty > p.stock) warn.textContent = t.overStock.replace('{n}', String(p.stock));
-        else if (line.qty === p.stock) warn.textContent = t.maxStock;
-      }
+      if (p.stock > 0) qty.max = String(p.stock);
+      else qty.disabled = true;
+      if (problem?.kind === 'soldOut') warn.textContent = t.soldOut;
+      if (problem?.kind === 'over') warn.textContent = t.overStock.replace('{n}', String(problem.available));
       warn.hidden = !warn.textContent;
       qty.addEventListener('change', () => {
         const n = Math.floor(Number(qty.value));
@@ -106,13 +123,47 @@ const t = bg.cart;
     empty.hidden = lines.length > 0;
     summary.hidden = lines.length === 0;
     totalEl.textContent = formatPrice(total);
+
+    const isBlocked = problems.size > 0;
+    blocked.hidden = !isBlocked;
+    if (isBlocked) {
+      checkoutLink.setAttribute('aria-disabled', 'true');
+      checkoutLink.setAttribute('aria-describedby', 'cart-blocked-msg');
+    } else {
+      checkoutLink.removeAttribute('aria-disabled');
+      checkoutLink.removeAttribute('aria-describedby');
+    }
   };
+
+  $('[data-cart-fix]').addEventListener('click', () => {
+    const { lines, fixed } = fixCart(readCart(), stock());
+    const nameOf = (id: string) => catalog[id]?.name ?? id;
+    const items = fixed.map((f) => {
+      const li = document.createElement('li');
+      li.textContent =
+        f.kind === 'over'
+          ? t.fixedLowered.replace('{name}', nameOf(f.id)).replace('{from}', String(f.qty)).replace('{to}', String(f.available))
+          : (f.kind === 'soldOut' ? t.fixedRemoved : t.fixedUnavailable).replace('{name}', nameOf(f.id));
+      return li;
+    });
+    const title = document.createElement('strong');
+    title.textContent = t.fixedTitle;
+    const ul = document.createElement('ul');
+    items.forEach((li) => ul.appendChild(li));
+    fixedEl.replaceChildren();
+    fixedEl.appendChild(title);
+    fixedEl.appendChild(ul);
+    fixedEl.hidden = items.length === 0;
+    setCart(lines);
+    // Move focus somewhere sensible: the fix button disappears once the cart is fixed.
+    (lines.length ? checkoutLink : $<HTMLAnchorElement>('[data-cart-empty] a')).focus();
+  });
 
   onCartChange(render);
   // The catalog above has build-time stock; replace it with live stock and redraw.
-  liveStock().then((stock) => {
-    if (!stock) return;
-    for (const [id, n] of Object.entries(stock)) if (catalog[id]) catalog[id].stock = n;
+  liveStock().then((live) => {
+    if (!live) return;
+    for (const [id, n] of Object.entries(live)) if (catalog[id]) catalog[id].stock = n;
     render(readCart());
   });
 </script>

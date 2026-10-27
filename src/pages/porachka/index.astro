@@ -10,7 +10,7 @@ export const prerender = false;
 const t = bg.checkout;
 const bankEnabled = bankTransfer() !== null;
 const catalog = Object.fromEntries(
-  (await getProducts()).map((p) => [p.id, { name: p.data.name, priceCents: p.data.priceCents }]),
+  (await getProducts()).map((p) => [p.id, { name: p.data.name, priceCents: p.data.priceCents, stock: p.data.stock }]),
 );
 ---
 <Layout title={`${t.title} — ${bg.siteName}`} active="cart">
@@ -99,20 +99,37 @@ const catalog = Object.fromEntries(
 
 <script>
   import { clearCart, readCart } from '../../scripts/cart';
+  import { liveStock } from '../../scripts/live-stock';
+  import { cartProblems } from '../../lib/cart-stock';
   import { formatPrice } from '../../lib/format';
 
   const { catalog, t } = JSON.parse(document.getElementById('checkout-data')!.textContent!) as {
-    catalog: Record<string, { name: string; priceCents: number }>;
+    catalog: Record<string, { name: string; priceCents: number; stock: number }>;
     t: Record<string, string> & { errors: Record<string, string> };
   };
   const form = document.querySelector<HTMLFormElement>('[data-checkout]')!;
   const formError = document.querySelector<HTMLElement>('[data-form-error]')!;
   const submit = document.querySelector<HTMLButtonElement>('[data-submit]')!;
 
-  const lines = readCart().filter((l) => catalog[l.id]);
-  if (lines.length === 0) {
-    document.querySelector<HTMLElement>('[data-empty]')!.hidden = false;
-  } else {
+  // The form stays hidden until the cart passes the same stock check as the cart page. If it doesn't,
+  // go back to the cart, which shows what to fix. Opening /porachka/ directly can't skip this.
+  // (The server checks stock again when the order is placed.)
+  async function checkCart() {
+    const lines = readCart();
+    if (lines.length === 0) {
+      document.querySelector<HTMLElement>('[data-empty]')!.hidden = false;
+      return;
+    }
+    const live = await liveStock();
+    const stock = Object.fromEntries(Object.entries(catalog).map(([id, p]) => [id, live?.[id] ?? p.stock]));
+    if (cartProblems(lines, stock).length > 0) {
+      location.replace('/kolichka/');
+      return;
+    }
+    showSummary(lines);
+  }
+
+  function showSummary(lines: ReturnType<typeof readCart>) {
     form.hidden = false;
     const list = document.querySelector<HTMLElement>('[data-summary]')!;
     let total = 0;
@@ -130,6 +147,7 @@ const catalog = Object.fromEntries(
     }
     document.querySelector<HTMLElement>('[data-total]')!.textContent = formatPrice(total);
   }
+  checkCart();
 
   // Show only the office or the address field, depending on the delivery choice.
   const syncDelivery = () => {

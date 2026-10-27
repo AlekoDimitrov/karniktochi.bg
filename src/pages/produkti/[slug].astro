@@ -84,9 +84,6 @@ const inStock = d.stock > 0;
           <p class="pdp__added" data-added hidden role="status">
             {bg.product.added} <a href="/kolichka/">{bg.product.toCart}</a>
           </p>
-          <p class="pdp__added" data-max hidden role="status">
-            {bg.cart.maxStock} <a href="/kolichka/">{bg.product.toCart}</a>
-          </p>
           <small>{bg.product.payNote}</small>
         </div>
         {
@@ -122,16 +119,15 @@ const inStock = d.stock > 0;
   const btn = document.querySelector<HTMLButtonElement>('[data-add-to-cart]');
   const status = document.querySelector<HTMLElement>('[data-stock-status]');
   const added = document.querySelector<HTMLElement>('[data-added]');
-  const max = document.querySelector<HTMLElement>('[data-max]');
 
   if (btn) {
     const id = btn.dataset.addToCart!;
     // data-stock caps how many can go in the cart; it starts as build-time stock and is replaced by live stock.
+    // At the cap a click does nothing.
     btn.addEventListener('click', () => {
       const before = readCart().find((l) => l.id === id)?.qty ?? 0;
       const after = addToCart(id, 1, Number(btn.dataset.stock));
-      if (added) added.hidden = after === before;
-      if (max) max.hidden = after !== before;
+      if (added && after !== before) added.hidden = false;
     });
 
     liveStock().then((stock) => {

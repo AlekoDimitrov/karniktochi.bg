@@ -306,3 +306,10 @@ input[aria-invalid='true'] { border-color: #b3261e; }
 .bubble__toggle .icon-play { display: none; }
 .bubble__toggle[data-paused='true'] .icon-pause { display: none; }
 .bubble__toggle[data-paused='true'] .icon-play { display: block; }
+
+/* Cart stock problems */
+.btn--outline { background: transparent; border-color: var(--ink); color: var(--ink); align-self: flex-start; }
+.btn[aria-disabled='true'] { opacity: 0.45; cursor: not-allowed; filter: none; }
+.cart-blocked { display: flex; flex-direction: column; gap: 12px; }
+.cart-fixed { padding: 14px 18px; background: var(--sand); border-radius: var(--radius); }
+.cart-fixed ul { margin: 6px 0 0; padding-left: 20px; }

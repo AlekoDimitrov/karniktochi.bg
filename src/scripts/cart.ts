@@ -38,6 +38,11 @@ export function addToCart(id: string, qty = 1, max = Infinity): number {
   return next;
 }
 
+/** Replaces the whole cart. */
+export function setCart(lines: CartLine[]) {
+  writeCart(lines);
+}
+
 export function setQty(id: string, qty: number) {
   writeCart(readCart().map((l) => (l.id === id ? { ...l, qty } : l)));
 }
