@@ -1,0 +1,48 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { getStockLevels, setStock } from '../../lib/orders';
+import { getProducts } from '../../lib/products';
+
+export const prerender = false;
+
+const products = await getProducts();
+const fileStock = Object.fromEntries(products.map((p) => [p.id, p.data.stock]));
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const id = String(form.get('id'));
+  const qty = Number(form.get('quantity'));
+  if (id in fileStock && Number.isInteger(qty) && qty >= 0 && qty <= 100000) await setStock(env.DB, id, qty);
+  return Astro.redirect(`/admin/stock/?saved=${encodeURIComponent(id)}#p-${id}`, 303);
+}
+
+const levels = await getStockLevels(env.DB, fileStock);
+const saved = Astro.url.searchParams.get('saved');
+---
+<AdminLayout title="Наличност" active="stock">
+  <h1 class="page-h1">Наличност</h1>
+  <p class="muted" style="max-width: 640px">
+    Броят тук е актуалната наличност: поръчките я намаляват, а отказаните и анулираните я връщат.
+    Числото <code>stock</code> във файла на продукта се използва само докато продуктът не е поръчан за първи път.
+    При нова доставка въведете новия общ брой тук.
+  </p>
+  <table class="stock-table">
+    <thead><tr><th>Продукт</th><th>Наличност</th></tr></thead>
+    <tbody>
+      {products.map((p) => (
+        <tr id={`p-${p.id}`}>
+          <td>{p.data.brand} {p.data.name}</td>
+          <td>
+            <form method="post" class="stock-form">
+              <input type="hidden" name="id" value={p.id} />
+              <input type="number" name="quantity" min="0" max="100000" value={levels[p.id]} aria-label={`Наличност за ${p.data.name}`} />
+              <button class="btn btn--accent" type="submit">Запази</button>
+              {saved === p.id && <span role="status">Записано.</span>}
+            </form>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</AdminLayout>

@@ -1,0 +1,119 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { formatPrice } from '../../lib/format';
+import { formatBgPhone } from '../../lib/checkout-input';
+import {
+  changeStatus,
+  getOrder,
+  listOrders,
+  ORDER_STATUSES,
+  OutOfStockError,
+  setInternalNote,
+  StatusConflictError,
+  type OrderStatus,
+} from '../../lib/orders';
+
+export const prerender = false;
+
+const statusLabel: Record<OrderStatus, string> = {
+  new: 'Нова — за потвърждение',
+  confirmed: 'Потвърдена',
+  shipped: 'Изпратена',
+  delivered: 'Доставена',
+  cancelled: 'Анулирана',
+  refused: 'Отказана пратка (НП)',
+};
+const isStatus = (s: unknown): s is OrderStatus => ORDER_STATUSES.includes(s as OrderStatus);
+
+const filter = Astro.url.searchParams.get('status');
+const status = isStatus(filter) ? filter : undefined;
+
+// Save one order's status and note, then redirect back (so a refresh doesn't resubmit).
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const id = Number(form.get('id'));
+  const expected = form.get('expected');
+  const next = form.get('status');
+  const note = String(form.get('note') ?? '').slice(0, 2000);
+  let msg = 'saved';
+  const order = Number.isInteger(id) ? await getOrder(env.DB, id) : null;
+  if (!order || !isStatus(expected) || !isStatus(next)) {
+    msg = 'invalid';
+  } else {
+    try {
+      await changeStatus(env.DB, id, expected, next);
+      if (note !== order.internalNote) await setInternalNote(env.DB, id, note);
+    } catch (e) {
+      if (e instanceof StatusConflictError) msg = 'conflict';
+      else if (e instanceof OutOfStockError) msg = 'stock';
+      else throw e;
+    }
+  }
+  const back = new URL(Astro.url);
+  back.searchParams.set('msg', msg);
+  back.hash = `order-${id}`;
+  return Astro.redirect(back.pathname + back.search + back.hash, 303);
+}
+
+const messages: Record<string, string> = {
+  saved: 'Записано.',
+  invalid: 'Невалидна заявка.',
+  conflict: 'Поръчката беше променена междувременно (напр. от друг прозорец). Нищо не е записано; вижте актуалния статус.',
+  stock: 'Няма достатъчно наличност, за да се върне поръчката в активен статус. Нищо не е записано.',
+};
+const msg = messages[Astro.url.searchParams.get('msg') ?? ''];
+const orders = await listOrders(env.DB, status);
+const when = (iso: string) => new Date(iso).toLocaleString('bg-BG', { timeZone: 'Europe/Sofia', dateStyle: 'short', timeStyle: 'short' });
+---
+<AdminLayout title="Поръчки" active="orders">
+  <h1 class="page-h1">Поръчки</h1>
+  <nav class="chips" aria-label="Филтър по статус">
+    <a class="chip" href="/admin/" aria-current={!status ? 'page' : undefined}>Всички</a>
+    {ORDER_STATUSES.map((s) => (
+      <a class="chip" href={`/admin/?status=${s}`} aria-current={status === s ? 'page' : undefined}>{statusLabel[s]}</a>
+    ))}
+  </nav>
+  {msg && <p class="admin-msg" role="status">{msg}</p>}
+  {orders.length === 0 && <p style="margin-top: 24px">Няма поръчки.</p>}
+  <ol class="orders">
+    {orders.map((o) => (
+      <li class="order" id={`order-${o.id}`} data-status={o.status}>
+        <div class="order__head">
+          <strong>{o.reference}</strong>
+          <span class="badge">{statusLabel[o.status]}</span>
+          <span class="muted">{when(o.createdAt)}</span>
+          <strong class="order__total">{formatPrice(o.totalCents)}</strong>
+        </div>
+        <div class="order__body">
+          <div>
+            <div>{o.customerName}</div>
+            <a class="tel" href={`tel:${o.phone}`}>{formatBgPhone(o.phone)}</a>
+            {o.email && <div><a href={`mailto:${o.email}`}>{o.email}</a></div>}
+            <div>{o.deliveryMethod === 'office' ? 'Офис' : 'Адрес'}: {o.city}, {o.deliveryDetails}</div>
+            <div>{o.paymentMethod === 'cod' ? 'Наложен платеж' : 'Банков превод'}</div>
+            {o.customerNote && <div class="order__note">Бележка от клиента: {o.customerNote}</div>}
+          </div>
+          <ul class="order__items">
+            {o.items.map((i) => <li>{i.quantity} × {i.name} — {formatPrice(i.unitPriceCents * i.quantity)}</li>)}
+          </ul>
+        </div>
+        <form method="post" class="order__form">
+          <input type="hidden" name="id" value={o.id} />
+          <input type="hidden" name="expected" value={o.status} />
+          <label>
+            Статус
+            <select name="status">
+              {ORDER_STATUSES.map((s) => <option value={s} selected={s === o.status}>{statusLabel[s]}</option>)}
+            </select>
+          </label>
+          <label class="order__internal">
+            Вътрешна бележка (клиентът не я вижда)
+            <textarea name="note" maxlength="2000">{o.internalNote}</textarea>
+          </label>
+          <button class="btn btn--accent" type="submit">Запази</button>
+        </form>
+      </li>
+    ))}
+  </ol>
+</AdminLayout>
