@@ -9,7 +9,7 @@ export async function freshDb() {
   const db = (await mf.getD1Database('DB')) as unknown as D1Database;
   for (const file of readdirSync('migrations').sort()) {
     const sql = readFileSync(`migrations/${file}`, 'utf8').replace(/--.*$/gm, '');
-    for (const stmt of sql.split(';').map((s) => s.trim()).filter(Boolean)) await db.prepare(stmt).run();
+    for (const stmt of sql.split(';').map((s: string) => s.trim()).filter(Boolean)) await db.prepare(stmt).run();
   }
   return { db, dispose: () => mf.dispose() };
 }

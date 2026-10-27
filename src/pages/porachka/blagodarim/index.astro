@@ -1,0 +1,70 @@
+---
+import { env } from 'cloudflare:workers';
+import Layout from '../../../layouts/Layout.astro';
+import { bg } from '../../../i18n/bg';
+import { bankTransfer } from '../../../lib/config';
+import { formatPrice } from '../../../lib/format';
+import { formatBgPhone } from '../../../lib/checkout-input';
+import { getOrderByPublicId } from '../../../lib/orders';
+
+export const prerender = false;
+
+const t = bg.thanks;
+const id = Astro.url.searchParams.get('id') ?? '';
+const order = /^[0-9a-f]{32}$/.test(id) ? await getOrderByPublicId(env.DB, id) : null;
+if (!order) Astro.response.status = 404;
+// Bank details show only if the order was placed for bank transfer and it is still switched on.
+const bank = order?.paymentMethod === 'bank_transfer' ? bankTransfer() : null;
+// The URL carries the order id; keep it out of Referer headers sent to other sites.
+Astro.response.headers.set('Referrer-Policy', 'no-referrer');
+---
+<Layout title={`${order ? t.title : t.notFound} — ${bg.siteName}`}>
+  <div class="container narrow">
+    {
+      order ? (
+        <div class="thanks">
+          <h1 class="page-h1" style="margin-bottom: 0">{t.title}</h1>
+          <div>
+            <div class="muted">{t.number}</div>
+            <div class="thanks__ref">{order.reference}</div>
+          </div>
+          <p>{t.call.replace('{phone}', formatBgPhone(order.phone))}</p>
+          {order.email && <p>{t.emailSent.replace('{email}', order.email)}</p>}
+          <section class="checkout__box">
+            <ul class="summary">
+              {order.items.map((i) => (
+                <li>
+                  <span>{i.quantity} × {i.name}</span>
+                  <span>{formatPrice(i.unitPriceCents * i.quantity)}</span>
+                </li>
+              ))}
+            </ul>
+            <div class="cart-total__row">
+              <span>{t.total} <small class="muted">({t.shippingExtra})</small></span>
+              <strong>{formatPrice(order.totalCents)}</strong>
+            </div>
+          </section>
+          {bank && (
+            <section class="checkout__box bank">
+              <h2 class="head" style="font-size: 22px">{t.bankTitle}</h2>
+              <p>{t.bankText}</p>
+              <dl>
+                <dt>{t.holder}</dt><dd>{bank.holder}</dd>
+                <dt>{t.iban}</dt><dd>{bank.iban}</dd>
+                {bank.bic && <><dt>{t.bic}</dt><dd>{bank.bic}</dd></>}
+                <dt>{t.amount}</dt><dd>{formatPrice(order.totalCents)}</dd>
+                <dt>{t.reference}</dt><dd>{order.reference}</dd>
+              </dl>
+            </section>
+          )}
+          <a class="link-orange" href="/produkti/">{t.back} →</a>
+        </div>
+      ) : (
+        <>
+          <h1 class="page-h1">{t.notFound}</h1>
+          <a class="link-orange" href="/produkti/">{t.back} →</a>
+        </>
+      )
+    }
+  </div>
+</Layout>

@@ -74,7 +74,7 @@ const t = bg.cart;
         warn.textContent = t.unavailable;
         warn.hidden = false;
         qty.closest('label')!.remove();
-        list.append(li);
+        list.appendChild(li);
         continue;
       }
       if (p.thumb) img.src = p.thumb;
@@ -96,7 +96,7 @@ const t = bg.cart;
         else removeFromCart(line.id);
       });
       total += p.priceCents * line.qty;
-      list.append(li);
+      list.appendChild(li);
     }
     empty.hidden = lines.length > 0;
     summary.hidden = lines.length === 0;

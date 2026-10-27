@@ -1,0 +1,205 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { bg } from '../../i18n/bg';
+import { bankTransfer } from '../../lib/config';
+import { getProducts } from '../../lib/products';
+
+// Rendered per request so the ENABLE_BANK_TRANSFER switch takes effect without a rebuild.
+export const prerender = false;
+
+const t = bg.checkout;
+const bankEnabled = bankTransfer() !== null;
+const catalog = Object.fromEntries(
+  (await getProducts()).map((p) => [p.id, { name: p.data.name, priceCents: p.data.priceCents }]),
+);
+---
+<Layout title={`${t.title} — ${bg.siteName}`} active="cart">
+  <div class="container narrow">
+    <h1 class="page-h1">{t.title}</h1>
+    <p data-empty hidden>{t.emptyCart} <a class="link-orange" href="/produkti/">{bg.cart.browse} →</a></p>
+
+    <form class="checkout" data-checkout novalidate hidden>
+      <section class="checkout__box">
+        <h2>{t.summary}</h2>
+        <ul class="summary" data-summary></ul>
+        <div class="cart-total__row"><span>{bg.cart.total}</span><strong data-total></strong></div>
+        <small class="muted">{bg.cart.shippingNote}</small>
+        <a class="link-orange" href="/kolichka/">← {bg.cart.title}</a>
+      </section>
+
+      <fieldset>
+        <legend>{t.contact}</legend>
+        <div class="field">
+          <label for="f-name">{t.name}</label>
+          <input id="f-name" name="name" autocomplete="name" required maxlength="100" />
+        </div>
+        <div class="field">
+          <label for="f-phone">{t.phone}</label>
+          <input id="f-phone" name="phone" type="tel" autocomplete="tel" required aria-describedby="f-phone-hint" />
+          <small id="f-phone-hint">{t.phoneHint}</small>
+        </div>
+        <div class="field">
+          <label for="f-email">{t.email}</label>
+          <input id="f-email" name="email" type="email" autocomplete="email" maxlength="200" aria-describedby="f-email-hint" />
+          <small id="f-email-hint">{t.emailHint}</small>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>{t.delivery}</legend>
+        <div class="field">
+          <label for="f-city">{t.city}</label>
+          <input id="f-city" name="city" autocomplete="address-level2" required maxlength="80" />
+        </div>
+        <div class="choices" data-field="deliveryMethod">
+          <label class="choice"><input type="radio" name="deliveryMethod" value="office" checked /> {t.toOffice}</label>
+          <label class="choice"><input type="radio" name="deliveryMethod" value="address" /> {t.toAddress}</label>
+        </div>
+        <div class="field" data-when="office">
+          <label for="f-office">{t.office}</label>
+          <input id="f-office" name="office" maxlength="300" aria-describedby="f-office-hint" />
+          <small id="f-office-hint">{t.officeHint}</small>
+        </div>
+        <div class="field" data-when="address" hidden>
+          <label for="f-address">{t.address}</label>
+          <input id="f-address" name="address" autocomplete="street-address" maxlength="300" aria-describedby="f-address-hint" />
+          <small id="f-address-hint">{t.addressHint}</small>
+        </div>
+        <div class="field">
+          <label for="f-note">{t.note}</label>
+          <textarea id="f-note" name="note" maxlength="1000"></textarea>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>{t.payment}</legend>
+        <div class="choices" data-field="paymentMethod">
+          <label class="choice">
+            <input type="radio" name="paymentMethod" value="cod" checked />
+            <span><strong>{t.cod}</strong><small>{t.codHint}</small></span>
+          </label>
+          {
+            bankEnabled && (
+              <label class="choice">
+                <input type="radio" name="paymentMethod" value="bank_transfer" />
+                <span><strong>{t.bank}</strong><small>{t.bankHint}</small></span>
+              </label>
+            )
+          }
+        </div>
+      </fieldset>
+
+      <p class="form-error" data-form-error role="alert" hidden></p>
+      <button class="btn btn--add" type="submit" data-submit>{t.submit}</button>
+      <small class="muted">{t.callNote}</small>
+    </form>
+  </div>
+  <script type="application/json" id="checkout-data" set:html={JSON.stringify({ catalog, t })} />
+</Layout>
+
+<script>
+  import { clearCart, readCart } from '../../scripts/cart';
+  import { formatPrice } from '../../lib/format';
+
+  const { catalog, t } = JSON.parse(document.getElementById('checkout-data')!.textContent!) as {
+    catalog: Record<string, { name: string; priceCents: number }>;
+    t: Record<string, string> & { errors: Record<string, string> };
+  };
+  const form = document.querySelector<HTMLFormElement>('[data-checkout]')!;
+  const formError = document.querySelector<HTMLElement>('[data-form-error]')!;
+  const submit = document.querySelector<HTMLButtonElement>('[data-submit]')!;
+
+  const lines = readCart().filter((l) => catalog[l.id]);
+  if (lines.length === 0) {
+    document.querySelector<HTMLElement>('[data-empty]')!.hidden = false;
+  } else {
+    form.hidden = false;
+    const list = document.querySelector<HTMLElement>('[data-summary]')!;
+    let total = 0;
+    for (const l of lines) {
+      const p = catalog[l.id];
+      const li = document.createElement('li');
+      const name = document.createElement('span');
+      name.textContent = `${l.qty} × ${p.name}`;
+      const price = document.createElement('span');
+      price.textContent = formatPrice(p.priceCents * l.qty);
+      li.appendChild(name);
+      li.appendChild(price);
+      list.appendChild(li);
+      total += p.priceCents * l.qty;
+    }
+    document.querySelector<HTMLElement>('[data-total]')!.textContent = formatPrice(total);
+  }
+
+  // Show only the office or the address field, depending on the delivery choice.
+  const syncDelivery = () => {
+    const method = new FormData(form).get('deliveryMethod');
+    form.querySelectorAll<HTMLElement>('[data-when]').forEach((el) => {
+      el.hidden = el.dataset.when !== method;
+      el.querySelector('input')!.required = !el.hidden;
+    });
+  };
+  form.addEventListener('change', syncDelivery);
+  syncDelivery();
+
+  const clearErrors = () => {
+    form.querySelectorAll('.field-error').forEach((el) => el.remove());
+    form.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
+    formError.hidden = true;
+  };
+
+  const showError = (field: string, code: string) => {
+    const msg = document.createElement('small');
+    msg.className = 'field-error form-error';
+    msg.id = `err-${field}`;
+    msg.textContent = t.errors[code] ?? t.errors.required;
+    const input = form.querySelector<HTMLInputElement>(`[name="${field}"]:not([type=radio])`);
+    if (input) {
+      input.setAttribute('aria-invalid', 'true');
+      input.setAttribute('aria-errormessage', msg.id);
+      input.insertAdjacentElement('afterend', msg);
+    } else {
+      (form.querySelector(`[data-field="${field}"]`) ?? formError).insertAdjacentElement('afterend', msg);
+    }
+  };
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearErrors();
+    const data = Object.fromEntries(new FormData(form));
+    submit.disabled = true;
+    submit.textContent = t.sending;
+    try {
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, items: readCart() }),
+      });
+      const result = (await res.json()) as {
+        ok: boolean;
+        publicId?: string;
+        outOfStock?: string[];
+        errors?: Record<string, string>;
+      };
+      if (result.ok) {
+        clearCart();
+        location.href = `/porachka/blagodarim/?id=${encodeURIComponent(result.publicId!)}`;
+        return;
+      }
+      if (result.outOfStock) {
+        formError.textContent = t.outOfStock + result.outOfStock.join(', ');
+      } else {
+        for (const [field, code] of Object.entries(result.errors ?? {})) {
+          if (field !== 'items') showError(field, code);
+        }
+        formError.textContent = result.errors?.items ? t.errors.items : t.fixErrors;
+        form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      }
+    } catch {
+      formError.textContent = t.failed;
+    }
+    formError.hidden = false;
+    submit.disabled = false;
+    submit.textContent = t.submit;
+  });
+</script>
