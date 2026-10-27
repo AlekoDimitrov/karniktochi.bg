@@ -5,7 +5,7 @@ import cloudflare from '@astrojs/cloudflare';
 
 // https://astro.build/config
 export default defineConfig({
-  // No server-side sessions: the cart is client-side and checkout is on Stripe.
+  // No server-side sessions: the cart is client-side (localStorage).
   // This stops the adapter from adding a SESSION KV binding.
   session: false,
   adapter: cloudflare({

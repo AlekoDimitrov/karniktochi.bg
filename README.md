@@ -71,7 +71,7 @@ npm run build    # must pass
 - Demo products have `placeholder: true` and show a red ДЕМО ribbon. Delete them before launch.
 - `LAUNCH=1` (build variable) makes the build FAIL if any demo product remains and removes the noindex meta tag.
 - Hero bubble logic: `src/scripts/bubble.ts` (respects reduced-motion, pauses off-screen).
-- Cart, Stripe checkout and the legal pages are not built yet (buttons/links are placeholders).
+- Cart, checkout (cash on delivery / bank transfer) and /admin are built. Legal pages are not yet.
 
 ## 5. Launch checklist (adds to the existing one)
 1. Replace demo products with real ones (real photos go through `images:` in the product front matter).
