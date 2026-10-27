@@ -1,0 +1,105 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { bg } from '../../i18n/bg';
+import { getCatalog } from '../../lib/products';
+
+const catalog = await getCatalog();
+const t = bg.cart;
+---
+<Layout title={`${t.title} — ${bg.siteName}`} active="cart">
+  <div class="container narrow">
+    <h1 class="page-h1">{t.title}</h1>
+    <div data-cart-root>
+      <p data-cart-empty hidden>
+        {t.empty} <a class="link-orange" href="/produkti/">{t.browse} →</a>
+      </p>
+      <ul class="cart-lines" data-cart-lines></ul>
+      <div class="cart-total" data-cart-summary hidden>
+        <div class="cart-total__row"><span>{t.total}</span><strong data-cart-total></strong></div>
+        <small>{t.shippingNote}</small>
+        <a class="btn btn--add" href="/porachka/">{t.checkout}</a>
+      </div>
+    </div>
+  </div>
+
+  <template id="cart-line">
+    <li class="cart-line">
+      <div class="cart-line__photo"><img alt="" width="80" height="100" /></div>
+      <div class="cart-line__info">
+        <span class="card__brand" data-brand></span>
+        <a class="cart-line__name" data-name></a>
+        <span class="cart-line__price" data-price></span>
+        <small class="cart-line__warn" data-warn hidden></small>
+      </div>
+      <div class="cart-line__qty">
+        <label>
+          <span class="visually-hidden">{t.qty}</span>
+          <input type="number" min="1" inputmode="numeric" data-qty />
+        </label>
+        <button type="button" class="link-btn" data-remove>{t.remove}</button>
+      </div>
+    </li>
+  </template>
+  <script type="application/json" id="catalog" set:html={JSON.stringify(catalog)} />
+  <script type="application/json" id="cart-text" set:html={JSON.stringify(t)} />
+</Layout>
+
+<script>
+  import { onCartChange, removeFromCart, setQty } from '../../scripts/cart';
+  import { formatPrice } from '../../lib/format';
+  import type { CatalogItem } from '../../lib/products';
+
+  const catalog: Record<string, CatalogItem> = JSON.parse(document.getElementById('catalog')!.textContent!);
+  const t = JSON.parse(document.getElementById('cart-text')!.textContent!);
+  const list = document.querySelector<HTMLElement>('[data-cart-lines]')!;
+  const tpl = document.querySelector<HTMLTemplateElement>('#cart-line')!;
+  const empty = document.querySelector<HTMLElement>('[data-cart-empty]')!;
+  const summary = document.querySelector<HTMLElement>('[data-cart-summary]')!;
+  const totalEl = document.querySelector<HTMLElement>('[data-cart-total]')!;
+
+  onCartChange((lines) => {
+    list.replaceChildren();
+    let total = 0;
+    for (const line of lines) {
+      const p = catalog[line.id];
+      const li = tpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+      const q = <T extends Element>(s: string) => li.querySelector<T>(s)!;
+      const img = q<HTMLImageElement>('img');
+      const warn = q<HTMLElement>('[data-warn]');
+      const qty = q<HTMLInputElement>('[data-qty]');
+      q<HTMLButtonElement>('[data-remove]').addEventListener('click', () => removeFromCart(line.id));
+      if (!p) {
+        img.remove();
+        q('[data-name]').textContent = line.id;
+        warn.textContent = t.unavailable;
+        warn.hidden = false;
+        qty.closest('label')!.remove();
+        list.append(li);
+        continue;
+      }
+      if (p.thumb) img.src = p.thumb;
+      else img.remove();
+      q('[data-brand]').textContent = p.brand.toUpperCase();
+      const name = q<HTMLAnchorElement>('[data-name]');
+      name.textContent = p.name;
+      name.href = `/produkti/${p.id}/`;
+      q('[data-price]').textContent = formatPrice(p.priceCents * line.qty);
+      qty.value = String(line.qty);
+      qty.max = String(p.stock);
+      if (line.qty >= p.stock) {
+        warn.textContent = t.maxStock;
+        warn.hidden = false;
+      }
+      qty.addEventListener('change', () => {
+        const n = Math.floor(Number(qty.value));
+        if (n > 0) setQty(line.id, Math.min(n, p.stock));
+        else removeFromCart(line.id);
+      });
+      total += p.priceCents * line.qty;
+      list.append(li);
+    }
+    empty.hidden = lines.length > 0;
+    summary.hidden = lines.length === 0;
+    totalEl.textContent = formatPrice(total);
+  });
+</script>

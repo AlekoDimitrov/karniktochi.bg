@@ -9,7 +9,7 @@ import { bg } from '../i18n/bg';
 interface Props {
   title?: string;
   description?: string;
-  active?: 'home' | 'shop';
+  active?: 'home' | 'shop' | 'cart';
 }
 const { title = bg.defaultTitle, description = bg.defaultDescription, active } = Astro.props;
 // Until LAUNCH=1 is set at build time, ask search engines to stay away (see CLAUDE.md launch checklist).

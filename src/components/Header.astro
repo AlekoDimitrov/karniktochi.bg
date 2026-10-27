@@ -1,6 +1,6 @@
 ---
 import { bg } from '../i18n/bg';
-interface Props { active?: 'home' | 'shop' }
+interface Props { active?: 'home' | 'shop' | 'cart' }
 const { active } = Astro.props;
 ---
 <header class="site-header">
@@ -12,7 +12,16 @@ const { active } = Astro.props;
       <a href="/produkti/" aria-current={active === 'shop' ? 'page' : undefined}>{bg.nav.knives}</a>
       <a href="/#sharpening">{bg.nav.sharpening}</a>
       <a href="/#workshop">{bg.nav.about}</a>
-      <a class="nav__cart" href="/produkti/">{bg.nav.cart} (0)</a>
+      <a class="nav__cart" href="/kolichka/" aria-current={active === 'cart' ? 'page' : undefined}>
+        {bg.nav.cart} (<span data-cart-count>0</span>)
+      </a>
     </nav>
   </div>
 </header>
+
+<script>
+  import { cartCount, onCartChange } from '../scripts/cart';
+  onCartChange((lines) => {
+    document.querySelectorAll('[data-cart-count]').forEach((el) => (el.textContent = String(cartCount(lines))));
+  });
+</script>

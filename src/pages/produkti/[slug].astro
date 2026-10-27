@@ -65,10 +65,12 @@ const inStock = d.stock > 0;
         </div>
         <p class="pdp__summary">{d.summary}</p>
         <div class="pdp__buy">
-          <!-- Cart logic comes in the next phase; the button is a placeholder until then. -->
-          <button type="button" class="btn btn--add" data-add-to-cart={product.id} disabled={!inStock}>
+          <button type="button" class="btn btn--add" data-add-to-cart={product.id} data-stock={d.stock} disabled={!inStock}>
             {inStock ? bg.product.add : bg.product.outOfStock}
           </button>
+          <p class="pdp__added" data-added hidden role="status">
+            {bg.product.added} <a href="/kolichka/">{bg.product.toCart}</a>
+          </p>
           <small>{bg.product.payNote}</small>
         </div>
         {
@@ -97,3 +99,13 @@ const inStock = d.stock > 0;
     </div>
   </section>
 </Layout>
+
+<script>
+  import { addToCart } from '../../scripts/cart';
+  const btn = document.querySelector<HTMLButtonElement>('[data-add-to-cart]');
+  const added = document.querySelector<HTMLElement>('[data-added]');
+  btn?.addEventListener('click', () => {
+    addToCart(btn.dataset.addToCart!, 1, Number(btn.dataset.stock));
+    if (added) added.hidden = false;
+  });
+</script>
