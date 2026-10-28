@@ -1,4 +1,4 @@
-// Hero bubble: the duck bounces around inside the glass and spins on impact. It squashes on wall
+// Hero bubble: the duck bounces around inside the glass and wobbles upright on impact. It squashes on wall
 // contact and stretches when fast, breathes, blinks and startles when the glass is tapped; each wall
 // hit sends a ripple across the glass. Every so often it grins: the beak opens to show its teeth, one
 // eye winks and a tooth sparkles. Everything is drawn with transform and opacity only.
@@ -14,14 +14,17 @@ const TUNING = {
   calmSpeed: 0.35, // speed multiplier with prefers-reduced-motion
   collisionRadius: 0.4, // duck radius (R); its centre stays within 1 − this of the bubble centre
 
-  // Spin
-  spinFromWall: 2.4, // spin from a wall hit: tangential speed / collision radius × this
-  spinCap: 5, // max spin either way (rad/s)
-  spinDecay: 0.35, // (1/s)
+  // Tilt: the duck's angle is a damped spring toward upright, so it rocks and rights itself (never turns over)
+  tiltStiffness: 14, // (1/s²)
+  tiltDamping: 3.5, // (1/s); with the stiffness above, one small overshoot, then it settles
+  tiltKick: 1.2, // wall hit: angular velocity kick = this × speed along the wall / collision radius
+  tiltKickMax: 1.6, // cap on a wall kick (rad/s)
+  tiltMax: 0.5, // the angle never goes past this either way (rad, about 29°)
+  leanIntoMotion: 0.12, // steady lean toward horizontal travel at cruising speed (rad); capped at about 8°
 
   // Tap on the glass
   tapKnock: 0.9, // velocity away from the tap point (R/s)
-  tapSpin: [2, 4], // spin kick range (rad/s), random direction
+  tapTilt: 1.8, // tilt kick (rad/s), random direction
   tapGlassSquash: 1.4, // glass squash spring velocity added by a tap
   startleScale: 1.12, // peak duck scale
   startleDuration: 0.15, // (s)
@@ -70,6 +73,8 @@ const TUNING = {
   grinCloseAt: 1.45, // the mouth shuts with a small bounce; the grin ends at grinCloseAt + grinCloseTime
   grinCloseTime: 0.35,
   grinCloseBounce: 0.15, // share of the full drop the mouth springs back open
+  grinUpright: 0.3, // a grin waits for the duck to be within this angle of upright (rad)
+  grinUprightWait: 1, // ...but for no longer than this after it is due (s)
   grinShutOmega: 15, // after pause: how fast an open mouth shuts (rad/s, critically damped)
 
   // Pause: glide to a calm pose with a critically damped spring, blink once, then stop.
@@ -85,7 +90,7 @@ const TAU = Math.PI * 2;
 export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTMLButtonElement | null) {
   const T = TUNING;
   // If the visitor's system asks for reduced motion, run a calm version (slow drift, blinking and
-  // half-strength breathing only: no spin, squash, ripples or tap reactions).
+  // half-strength breathing only: no tilt, squash, ripples or tap reactions).
   // Everyone gets a pause button (WCAG 2.2.2); once the duck has settled, nothing moves or blinks.
   const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const speed = calm ? T.calmSpeed : 1;
@@ -111,7 +116,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
   const rr = T.collisionRadius;
   const lim = 1 - rr; // how far the duck's centre may travel
   let x = 0.2, y = -0.15, vx = 0.42, vy = 0.34;
-  let th = 0, w = 0.8; // duck rotation and spin
+  let th = 0, w = 0; // duck tilt and its angular velocity
   let s = 0, sv = 0, ang = 0; // glass squash: amount, velocity, direction
   let ds = 0, dsv = 0, dang = 0; // duck squash: amount (1 = full), velocity, direction
   let st = 0; // stretch along the velocity (1 = full)
@@ -125,14 +130,14 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
   const grinEnd = T.grinCloseAt + T.grinCloseTime;
   let grinT = -1; // seconds into the grin, -1 when none is running
   let nextGrin = T.grinEvery[0] + Math.random() * (T.grinEvery[1] - T.grinEvery[0]);
-  let grinQueued = false; // a tap asked for a grin after its startle
+  let grinQueued = false, queuedAt = 0; // a tap asked for a grin after its startle
   let gOpen = 0, gOpenV = 0, gSq = 0, gSqV = 0; // mouth opening (1 = full drop) and squint
   let winkEye = 0, sparkTooth = 0, grinShown = false;
   let hold: number | null = null; // dev only: freeze the duck at this point of the grin
 
   // run: physics. settle: gliding to the calm pose after pause, with the final blink. stopped: loop off.
   let phase: 'run' | 'settle' | 'stopped' = 'run';
-  let settleT = 0, thTarget = 0, finalBlink = false;
+  let settleT = 0, finalBlink = false;
   let last = 0, raf = 0, visible = true;
   let tap: { cx: number; cy: number } | null = null;
 
@@ -178,7 +183,11 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
 
   // Grin timeline while running: start one when it is due and nothing else is going on.
   const grinStep = (rdt: number) => {
-    if (grinT < 0 && canGrin && (clock >= nextGrin || grinQueued) && startle < 0 && blinkEnd < 0 && gOpen === 0) startGrin();
+    if (grinT < 0 && canGrin && (clock >= nextGrin || grinQueued) && startle < 0 && blinkEnd < 0 && gOpen === 0) {
+      // Wait (briefly) for the duck to be about upright.
+      const due = grinQueued ? queuedAt : nextGrin;
+      if (Math.abs(th) <= T.grinUpright || clock - due >= T.grinUprightWait) startGrin();
+    }
     if (grinT < 0) return shutGrin(rdt);
     grinT += rdt;
     if (grinT >= grinEnd) {
@@ -213,7 +222,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
 
   // One step of the physics while running. dt is scaled for calm mode; rdt is real time.
   const physics = (dt: number, rdt: number, R: number) => {
-    // Tap on the glass: squash from that side, knock the duck away, set it spinning and startle it.
+    // Tap on the glass: squash from that side, knock the duck away, rock it and startle it.
     if (tap) {
       const rect = bubble.getBoundingClientRect();
       const tx = (tap.cx - rect.left - rect.width / 2) / R, ty = (tap.cy - rect.top - rect.height / 2) / R;
@@ -225,9 +234,9 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
         ang = Math.atan2(ny, nx);
         vx -= nx * T.tapKnock;
         vy -= ny * T.tapKnock;
-        w = clamp(w + (Math.random() < 0.5 ? -1 : 1) * rand(T.tapSpin[0], T.tapSpin[1]), -T.spinCap, T.spinCap);
+        w += (Math.random() < 0.5 ? -1 : 1) * T.tapTilt;
         startle = 0;
-        if (T.grinOnTap) grinQueued = canGrin;
+        if (T.grinOnTap) { grinQueued = canGrin; queuedAt = clock; }
       }
     }
 
@@ -258,7 +267,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
         const target = rand(T.bounceSpeed[0], T.bounceSpeed[1]);
         vx *= target / sp;
         vy *= target / sp;
-        w = clamp(w * 0.4 + (T.spinFromWall * vt) / rr, -T.spinCap, T.spinCap);
+        w += clamp((T.tiltKick * vt) / rr, -T.tiltKickMax, T.tiltKickMax); // in the direction it slid along the wall
         sv += Math.min(0.8, vn) * T.glassFromWall;
         ang = Math.atan2(ny, nx);
         if (!calm) {
@@ -271,9 +280,17 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
       y = ny * lim;
     }
 
-    if (calm) { w = 0; sv = 0; s = 0; }
-    w *= Math.exp(-T.spinDecay * dt);
-    th += w * dt;
+    if (calm) { w = th = 0; sv = 0; s = 0; }
+    else {
+      // Tilt spring toward upright plus a small lean into horizontal travel; clamped, so it never turns over.
+      const lean = clamp((T.leanIntoMotion * vx) / T.cruiseSpeed, -0.14, 0.14);
+      w += (-T.tiltStiffness * (th - lean) - T.tiltDamping * w) * rdt;
+      th += w * rdt;
+      if (Math.abs(th) > T.tiltMax) {
+        th = Math.sign(th) * T.tiltMax;
+        if (w * th > 0) w = 0;
+      }
+    }
     sv += (-T.glassStiffness * s - T.glassDamping * sv) * dt;
     s = clamp(s + sv * dt, -T.glassSquashMax, T.glassSquashMax);
 
@@ -300,7 +317,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
     const cd = (v: number, vel: number, target: number) => vel + (-om * om * (v - target) - 2 * om * vel) * rdt;
     vx = cd(x, vx, 0); x += vx * rdt;
     vy = cd(y, vy, 0); y += vy * rdt;
-    w = cd(th, w, thTarget); th += w * rdt;
+    w = cd(th, w, 0); th += w * rdt;
     sv = cd(s, sv, 0); s += sv * rdt;
     dsv = cd(ds, dsv, 0); ds += dsv * rdt;
     envV = cd(env, envV, 0); env += envV * rdt;
@@ -312,7 +329,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
     const duckR = (duck.offsetWidth || R * 0.88) / 2;
     const off = Math.max(
       Math.hypot(x, y) * R, // position
-      Math.abs(th - thTarget) * duckR, // rotation, at the duck's edge
+      Math.abs(th) * duckR, // tilt, at the duck's edge
       env * T.breathAmplitude * duckR, // breathing
       Math.abs(s) * R, // glass shape
       Math.max(Math.abs(ds) * T.duckSquash, st * T.stretch) * duckR, // duck squash and stretch
@@ -455,7 +472,6 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
       phase = 'settle';
       settleT = 0;
       finalBlink = false;
-      thTarget = Math.round(th / TAU) * TAU; // nearest upright turn, shortest way round
       tap = null;
       grinQueued = false;
     } else {
