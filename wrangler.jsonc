@@ -31,7 +31,7 @@
 		"BANK_BIC": "",
 		"BANK_HOLDER": "",
 		// Where new-order notifications go.
-		"SHOP_NOTIFY_EMAIL": "",
+		"SHOP_NOTIFY_EMAIL": "team@karniktochi.com",
 		// Sender for all emails. The domain must be verified in Resend.
 		"EMAIL_FROM": "Карник Точи <porachki@karniktochi.com>",
 		// Cloudflare Access (protects /admin): team domain like "yourteam.cloudflareaccess.com" and the app's AUD tag.
