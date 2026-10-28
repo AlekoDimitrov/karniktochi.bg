@@ -3,7 +3,28 @@ import { bg } from '../i18n/bg';
 ---
 <div class="bubble-wrap">
   <div class="bubble" data-bubble>
-    <img class="bubble__duck" data-duck src="/images/duck.webp" alt={bg.hero.duckAlt} width="600" height="600" />
+    <div class="bubble__duck" data-duck>
+      <img src="/images/duck.webp" alt={bg.hero.duckAlt} width="600" height="600" />
+      <!-- Eye overlay in the image's 600×600 pixel space: yellow patches hide the drawn eyes, so these can look around and blink. -->
+      <svg class="bubble__eyes" data-eyes viewBox="0 0 600 600" aria-hidden="true">
+        <ellipse cx="185.5" cy="172.5" rx="24" ry="32" fill="#fff800" />
+        <ellipse cx="414" cy="167.5" rx="24" ry="31" fill="#fff800" />
+        <g data-look>
+          <g class="bubble__eyes-open">
+            <ellipse cx="185.5" cy="172.5" rx="20" ry="27.5" />
+            <ellipse cx="414" cy="167.5" rx="20" ry="26.5" />
+          </g>
+          <g class="bubble__eyes-shut">
+            <rect x="167" y="170" width="37" height="7" rx="3.5" />
+            <rect x="395.5" y="165" width="37" height="7" rx="3.5" />
+          </g>
+        </g>
+      </svg>
+    </div>
+    <div class="bubble__ripples" aria-hidden="true">
+      <span class="bubble__ripple" data-ripple></span>
+      <span class="bubble__ripple" data-ripple></span>
+    </div>
     <div class="bubble__gloss bubble__gloss--a"></div>
     <div class="bubble__gloss bubble__gloss--b"></div>
   </div>

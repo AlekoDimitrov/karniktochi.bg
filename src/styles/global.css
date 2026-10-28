@@ -96,8 +96,18 @@ h1, h2, h3, p { margin: 0; }
   will-change: transform; touch-action: manipulation;
 }
 .bubble__duck {
-  position: absolute; left: 50%; top: 50%; width: 44%; height: auto; display: block;
-  transform: translate(-50%, -50%); will-change: transform; user-select: none; -webkit-user-drag: none;
+  position: absolute; left: 50%; top: 50%; width: 44%; aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%); will-change: transform;
+}
+.bubble__duck img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+.bubble__eyes { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; fill: #000; }
+.bubble__eyes-shut { opacity: 0; }
+.bubble__eyes[data-blink] .bubble__eyes-open { opacity: 0; }
+.bubble__eyes[data-blink] .bubble__eyes-shut { opacity: 1; }
+.bubble__ripples { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; }
+.bubble__ripple {
+  position: absolute; left: 0; top: 0; width: 40%; aspect-ratio: 1 / 1; margin: -20% 0 0 -20%;
+  border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 50%; opacity: 0; will-change: transform, opacity;
 }
 .bubble__gloss {
   position: absolute; border-radius: 50%; pointer-events: none; transform: rotate(-32deg);
