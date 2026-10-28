@@ -27,6 +27,8 @@ body {
   color: var(--ink);
   line-height: 1.55;
 }
+/* Scripts show and hide messages with the hidden attribute; a class's display: flex must not override it. */
+[hidden] { display: none !important; }
 img { max-width: 100%; }
 a { color: inherit; text-decoration: none; }
 a:hover { text-decoration: underline; }
