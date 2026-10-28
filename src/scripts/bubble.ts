@@ -1,6 +1,7 @@
 // Hero bubble: the duck bounces around inside the glass and spins on impact. It squashes on wall
 // contact and stretches when fast, breathes, blinks and startles when the glass is tapped; each wall
-// hit sends a ripple across the glass. Everything is drawn with transform and opacity only.
+// hit sends a ripple across the glass. Every so often it grins: the beak opens to show its teeth, one
+// eye winks and a tooth sparkles. Everything is drawn with transform and opacity only.
 // Units: positions and velocities are in bubble radii (R = 1), so it scales with any screen size.
 
 // All the numbers that shape the feel. Rates are per second; "R" is the bubble radius.
@@ -53,6 +54,24 @@ const TUNING = {
   blinkEvery: [3, 6], // random interval between blinks (s)
   blinkDuration: 0.12, // (s)
 
+  // Grin (not in calm mode). Lengths are in the duck image's 600×600 pixels; times in seconds from the start.
+  grinEvery: [8, 15], // random interval between grins (s)
+  grinOnTap: true, // a tap on the glass also sets off a grin once the startle is over, if none is running
+  grinDrop: 11.4, // how far the lower beak drops (px): 12% of the beak's 95 px height
+  grinJawScale: 0.97, // lower beak scale when fully open
+  grinOvershoot: 1.2, // back-ease constant for the opening; 1.2 overshoots by about 5%
+  grinOpenTime: 0.25,
+  grinSquint: 0.15, // the eyes flatten by this share while smiling
+  winkAt: 0.3, // one eye closes to a happy arc, at the peak
+  winkTime: 0.25,
+  sparkleTime: 0.4, // the star on a tooth grows, turns 45° and shrinks; it starts as the wink ends
+  twinkleStagger: 0.08, // the dots near it follow one after another
+  twinkleTime: 0.24,
+  grinCloseAt: 1.45, // the mouth shuts with a small bounce; the grin ends at grinCloseAt + grinCloseTime
+  grinCloseTime: 0.35,
+  grinCloseBounce: 0.15, // share of the full drop the mouth springs back open
+  grinShutOmega: 15, // after pause: how fast an open mouth shuts (rad/s, critically damped)
+
   // Pause: glide to a calm pose with a critically damped spring, blink once, then stop.
   settleOmega: 5, // natural frequency of the settle spring (rad/s); looks settled in ~1.2 s
   settleBlinkPx: 2, // looks settled (final blink) once everything is within this many screen pixels
@@ -72,6 +91,15 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
   const speed = calm ? T.calmSpeed : 1;
 
   const eyes = duck.querySelector<SVGSVGElement>('[data-eyes]');
+  const all = (sel: string) => Array.from(eyes?.querySelectorAll<SVGElement>(sel) ?? []);
+  const grinBox = eyes?.querySelector<SVGGElement>('[data-grin]');
+  const jaw = eyes?.querySelector<SVGGElement>('[data-jaw]');
+  const glow = eyes?.querySelector<SVGElement>('[data-glow]');
+  const spark = eyes?.querySelector<SVGElement>('[data-spark]');
+  const eyeEls = all('[data-eye]'), winkEls = all('[data-wink]'), twinkles = all('[data-twinkle]');
+  const teeth = all('[data-tooth]').map((el) => (el.dataset.tooth ?? '').split(' ').map(Number));
+  const canGrin = !calm && !!(grinBox && jaw && glow && spark) && eyeEls.length === 2 && winkEls.length === 2 && teeth.length > 2;
+  const twinkleAt = [[-32, -16], [28, -26], [24, 20]]; // dot offsets from the sparkle (px)
   const ringBox = bubble.querySelector<HTMLElement>('[data-ripples]');
   const rings = Array.from({ length: ringBox ? T.rippleMax : 0 }, () => {
     const el = document.createElement('span');
@@ -94,6 +122,13 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
   let nextBlink = T.blinkEvery[0] + Math.random() * (T.blinkEvery[1] - T.blinkEvery[0]);
   const ringT = rings.map(() => -1); // ripple ages in seconds, -1 when idle
   const ringX = rings.map(() => 0), ringY = rings.map(() => 0);
+  const grinEnd = T.grinCloseAt + T.grinCloseTime;
+  let grinT = -1; // seconds into the grin, -1 when none is running
+  let nextGrin = T.grinEvery[0] + Math.random() * (T.grinEvery[1] - T.grinEvery[0]);
+  let grinQueued = false; // a tap asked for a grin after its startle
+  let gOpen = 0, gOpenV = 0, gSq = 0, gSqV = 0; // mouth opening (1 = full drop) and squint
+  let winkEye = 0, sparkTooth = 0, grinShown = false;
+  let hold: number | null = null; // dev only: freeze the duck at this point of the grin
 
   // run: physics. settle: gliding to the calm pose after pause, with the final blink. stopped: loop off.
   let phase: 'run' | 'settle' | 'stopped' = 'run';
@@ -115,6 +150,56 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
     eyes?.toggleAttribute('data-blink', on);
   };
   const scheduleBlink = () => { nextBlink = clock + rand(T.blinkEvery[0], T.blinkEvery[1]); };
+  const scheduleGrin = () => { nextGrin = clock + rand(T.grinEvery[0], T.grinEvery[1]); };
+
+  const startGrin = () => {
+    grinT = 0;
+    grinQueued = false;
+    winkEye = Math.random() < 0.5 ? 0 : 1;
+    sparkTooth = 1 + Math.floor(Math.random() * (teeth.length - 2)); // not an end tooth
+  };
+
+  // The grin's pose at time t: opens with a small overshoot while the eyes squint, holds, then shuts
+  // with a small bounce.
+  const grinPose = (t: number) => {
+    const smooth = (u: number) => { u = clamp(u, 0, 1); return u * u * (3 - 2 * u); };
+    if (t < T.grinOpenTime) {
+      const u = t / T.grinOpenTime - 1, c = T.grinOvershoot;
+      gOpen = 1 + (c + 1) * u * u * u + c * u * u;
+    } else if (t < T.grinCloseAt) {
+      gOpen = 1;
+    } else {
+      const v = (t - T.grinCloseAt) / T.grinCloseTime;
+      gOpen = v < 0.55 ? Math.cos((v / 0.55) * (Math.PI / 2)) : T.grinCloseBounce * Math.sin((Math.PI * (v - 0.55)) / 0.45);
+    }
+    gSq = smooth(t / T.grinOpenTime) * (1 - smooth((t - T.grinCloseAt) / (T.grinCloseTime * 0.6)));
+    gOpenV = gSqV = 0;
+  };
+
+  // Grin timeline while running: start one when it is due and nothing else is going on.
+  const grinStep = (rdt: number) => {
+    if (grinT < 0 && canGrin && (clock >= nextGrin || grinQueued) && startle < 0 && blinkEnd < 0 && gOpen === 0) startGrin();
+    if (grinT < 0) return shutGrin(rdt);
+    grinT += rdt;
+    if (grinT >= grinEnd) {
+      grinT = -1;
+      gOpen = gSq = 0;
+      scheduleGrin();
+      scheduleBlink();
+    } else {
+      grinPose(grinT);
+    }
+  };
+
+  // After a pause mid-grin: the sparkle and wink go at once and the mouth shuts quickly.
+  const shutGrin = (rdt: number) => {
+    grinT = -1;
+    if (gOpen === 0 && gSq === 0) return;
+    const om = T.grinShutOmega;
+    gOpenV += (-om * om * gOpen - 2 * om * gOpenV) * rdt; gOpen += gOpenV * rdt;
+    gSqV += (-om * om * gSq - 2 * om * gSqV) * rdt; gSq += gSqV * rdt;
+    if (Math.abs(gOpen) < 0.005 && Math.abs(gSq) < 0.005) gOpen = gOpenV = gSq = gSqV = 0;
+  };
 
   // Start a ripple at a point on the wall (unit normal nx, ny); reuses the oldest ring if all are busy.
   const ripple = (nx: number, ny: number, R: number) => {
@@ -134,7 +219,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
       const tx = (tap.cx - rect.left - rect.width / 2) / R, ty = (tap.cy - rect.top - rect.height / 2) / R;
       const td = Math.hypot(tx, ty);
       tap = null;
-      if (td < 1.1) {
+      if (td < 1.1 && grinT < 0 && gOpen === 0) {
         const nx = td > 0.001 ? tx / td : 1, ny = td > 0.001 ? ty / td : 0;
         sv += T.tapGlassSquash;
         ang = Math.atan2(ny, nx);
@@ -142,6 +227,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
         vy -= ny * T.tapKnock;
         w = clamp(w + (Math.random() < 0.5 ? -1 : 1) * rand(T.tapSpin[0], T.tapSpin[1]), -T.spinCap, T.spinCap);
         startle = 0;
+        if (T.grinOnTap) grinQueued = canGrin;
       }
     }
 
@@ -200,8 +286,8 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
     envV += (-(T.settleOmega ** 2) * (env - 1) - 2 * T.settleOmega * envV) * rdt;
     env += envV * rdt;
 
-    // Blink every few seconds.
-    if (clock >= nextBlink) {
+    // Blink every few seconds, but not while grinning.
+    if (clock >= nextBlink && grinT < 0) {
       setBlink(true);
       scheduleBlink();
     }
@@ -219,6 +305,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
     dsv = cd(ds, dsv, 0); ds += dsv * rdt;
     envV = cd(env, envV, 0); env += envV * rdt;
     st -= st * Math.min(1, om * rdt);
+    shutGrin(rdt);
     settleT += rdt;
 
     // How far from the calm pose it still is, in screen pixels.
@@ -229,6 +316,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
       env * T.breathAmplitude * duckR, // breathing
       Math.abs(s) * R, // glass shape
       Math.max(Math.abs(ds) * T.duckSquash, st * T.stretch) * duckR, // duck squash and stretch
+      Math.max(Math.abs(gOpen) * T.grinDrop, gSq * 40) * (duckR / 300), // mouth and squint (image px → screen)
     );
     const slow = Math.hypot(vx, vy) * R < 5 && Math.abs(w) * duckR < 5; // px/s
 
@@ -241,6 +329,7 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
     // The last sub-pixel glide finishes during the blink; then land exactly on the calm pose.
     if (finalBlink && blinkEnd < 0 && ((off < T.settleSnapPx && ringT.every((t) => t < 0)) || overdue)) {
       x = y = vx = vy = w = s = sv = ds = dsv = st = env = envV = 0;
+      gOpen = gOpenV = gSq = gSqV = 0;
       th = 0;
       for (let i = 0; i < rings.length; i++) { ringT[i] = -1; rings[i].style.opacity = '0'; }
       return true;
@@ -266,6 +355,38 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
       ` rotate(${th.toFixed(4)}rad) scale(${sc.toFixed(4)})`;
     bubble.style.transform =
       `rotate(${ang.toFixed(4)}rad) scale(${(1 - s).toFixed(4)}, ${(1 + s).toFixed(4)}) rotate(${(-ang).toFixed(4)}rad)`;
+    if (canGrin) renderGrin();
+  };
+
+  // The grin overlay; untouched while no grin is showing.
+  const renderGrin = () => {
+    const on = grinT >= 0 || gOpen !== 0 || gSq !== 0;
+    if (!on && !grinShown) return;
+    grinShown = on;
+    grinBox!.style.opacity = on ? '1' : '0';
+    jaw!.style.transform = `translate(0px, ${(gOpen * T.grinDrop).toFixed(2)}px) scale(${(1 - (1 - T.grinJawScale) * gOpen).toFixed(4)})`;
+    const winking = grinT >= T.winkAt && grinT < T.winkAt + T.winkTime;
+    for (let i = 0; i < 2; i++) {
+      const wink = winking && i === winkEye;
+      eyeEls[i].style.transform = gSq > 0.001 ? `scale(1, ${(1 - T.grinSquint * gSq).toFixed(4)})` : '';
+      eyeEls[i].style.opacity = wink ? '0' : '';
+      winkEls[i].style.opacity = wink ? '1' : '';
+    }
+    // Sparkle: a star that grows, turns 45° and shrinks, with a glow and a few dots after it.
+    const [tx, ty] = teeth[sparkTooth];
+    const at = (u: number) => (grinT >= 0 && u > 0 && u < 1 ? Math.sin(Math.PI * u) : 0);
+    const u = (grinT - T.winkAt - T.winkTime) / T.sparkleTime;
+    const k = at(u);
+    spark!.style.transform = `translate(${tx}px, ${ty}px) rotate(${(45 * clamp(u, 0, 1)).toFixed(2)}deg) scale(${k.toFixed(3)})`;
+    spark!.style.opacity = k > 0 ? '1' : '0';
+    glow!.style.transform = `translate(${tx}px, ${ty}px) scale(${k.toFixed(3)})`;
+    glow!.style.opacity = k.toFixed(3);
+    for (let i = 0; i < twinkles.length; i++) {
+      const kd = at((grinT - T.winkAt - T.winkTime - (i + 1) * T.twinkleStagger) / T.twinkleTime);
+      const [ox, oy] = twinkleAt[i % twinkleAt.length];
+      twinkles[i].style.transform = `translate(${tx + ox}px, ${ty + oy}px) scale(${kd.toFixed(3)})`;
+      twinkles[i].style.opacity = kd > 0 ? '1' : '0';
+    }
   };
 
   const loop = (t: number) => {
@@ -276,8 +397,12 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
     const R = bubble.clientWidth / 2;
     if (R <= 0) return;
 
-    if (phase === 'run') {
+    if (hold !== null) {
+      grinT = hold;
+      grinPose(hold);
+    } else if (phase === 'run') {
       physics(rdt * speed, rdt, R);
+      grinStep(rdt);
     } else if (settle(rdt, R)) {
       render(R); // the calm pose, drawn once; nothing moves or blinks until play
       phase = 'stopped';
@@ -332,15 +457,36 @@ export function initBubble(bubble: HTMLElement, duck: HTMLElement, toggle?: HTML
       finalBlink = false;
       thTarget = Math.round(th / TAU) * TAU; // nearest upright turn, shortest way round
       tap = null;
+      grinQueued = false;
     } else {
       phase = 'run';
       const a = Math.random() * TAU;
       vx += Math.cos(a) * T.resumeSpeed;
       vy += Math.sin(a) * T.resumeSpeed;
       scheduleBlink();
+      scheduleGrin();
       start();
     }
   });
+
+  // Dev only: window.__duckGrin() plays a grin now; __duckGrin(t, turn) freezes the duck at t seconds
+  // into a grin, centred and turned by `turn` radians, for screenshots. __duckGrin() again lets go.
+  if (import.meta.env.DEV && canGrin) {
+    (window as unknown as { __duckGrin: (t?: number, turn?: number) => void }).__duckGrin = (t, turn = 0) => {
+      if (grinT < 0) startGrin();
+      hold = t ?? null;
+      if (hold !== null) {
+        winkEye = 0;
+        x = y = vx = vy = w = ds = dsv = st = s = sv = 0;
+        th = turn;
+        startle = -1;
+        setBlink(false);
+      } else {
+        vx = vy = T.cruiseSpeed / Math.SQRT2;
+      }
+      start();
+    };
+  }
 
   start();
 }

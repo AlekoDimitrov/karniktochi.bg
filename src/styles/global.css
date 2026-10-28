@@ -104,6 +104,13 @@ h1, h2, h3, p { margin: 0; }
 .bubble__eyes-shut { opacity: 0; }
 .bubble__eyes[data-blink] .bubble__eyes-open { opacity: 0; }
 .bubble__eyes[data-blink] .bubble__eyes-shut { opacity: 1; }
+.bubble__eyes-open ellipse { transform-box: fill-box; transform-origin: center; }
+.bubble__wink { opacity: 0; fill: none; stroke: #000; stroke-width: 7; stroke-linecap: round; }
+.bubble__grin { opacity: 0; }
+.bubble__teeth { fill: #fff; stroke: #000; stroke-width: 1.5; }
+.bubble__jaw { transform-box: view-box; transform-origin: 306px 211px; }
+.bubble__spark { fill: #fffbe0; stroke: #000; stroke-width: 2.5; }
+.bubble__glow, .bubble__spark { opacity: 0; }
 .bubble__ripples { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; }
 .bubble__ripple {
   position: absolute; left: 0; top: 0; width: 40%; aspect-ratio: 1 / 1; margin: -20% 0 0 -20%;
