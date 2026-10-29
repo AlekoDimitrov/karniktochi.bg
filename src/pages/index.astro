@@ -8,8 +8,7 @@ import '../styles/caveat.css';
 
 const latest = (await getProducts()).slice(0, 4);
 // Until the photo's year is known, the postmark shows dots instead of a made-up number
-const { workshopCaption, workshopPostmarkPlace, workshopPostmarkYear } = bg.home;
-const caption = [workshopCaption, workshopPostmarkYear].filter(Boolean).join(' ');
+const { workshopPostmarkPlace, workshopPostmarkYear } = bg.home;
 const postmarkRing = `${workshopPostmarkPlace} · ${workshopPostmarkYear || '• • •'} · `.repeat(2).trim();
 ---
 <Layout active="home">
@@ -73,7 +72,7 @@ const postmarkRing = `${workshopPostmarkPlace} · ${workshopPostmarkYear || '•
             />
             <span class="print__corners" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
           </div>
-          <figcaption class="print__caption">{caption}</figcaption>
+          <figcaption class="print__caption">{bg.home.workshopCaption}</figcaption>
           <div class="stamp" aria-hidden="true">
             <div class="stamp__paper">
               <div class="stamp__inner">
