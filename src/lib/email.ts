@@ -4,7 +4,7 @@ import { formatBgPhone } from './checkout-input';
 import { itemTitle, type Order } from './orders';
 import type { BankDetails } from './config';
 
-type Email = { from: string; to: string; subject: string; text: string; html: string; replyTo?: string };
+export type Email = { from: string; to: string; subject: string; text: string; html: string; replyTo?: string };
 
 export async function sendEmail(apiKey: string, email: Email) {
   const res = await fetch('https://api.resend.com/emails', {
@@ -65,6 +65,14 @@ export function customerEmail(o: Order, bank: BankDetails | null) {
     text: paras.map((p) => p.join('\n')).join('\n\n'),
     html: toHtml(paras),
   };
+}
+
+/** The emails for a new order: one to the shop (if `notify` is set), and one to the customer if they gave an address. */
+export function orderEmails(o: Order, cfg: { from: string; notify: string }, bank: BankDetails | null): Email[] {
+  const out: Email[] = [];
+  if (cfg.notify) out.push({ from: cfg.from, to: cfg.notify, replyTo: o.email ?? undefined, ...ownerEmail(o) });
+  if (o.email) out.push({ from: cfg.from, to: o.email, replyTo: cfg.notify || undefined, ...customerEmail(o, bank) });
+  return out;
 }
 
 export function ownerEmail(o: Order) {

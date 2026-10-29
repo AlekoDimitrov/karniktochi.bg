@@ -28,7 +28,30 @@ export function fixCart(lines: CartLine[], stock: Record<string, number>): { lin
   const next = lines.flatMap((l) => {
     const p = fixed.find((f) => f.id === l.id);
     if (!p) return [l];
-    return p.kind === 'over' ? [{ id: l.id, qty: p.available }] : [];
+    return p.kind === 'over' ? [{ ...l, qty: p.available }] : [];
   });
   return { lines: next, fixed };
+}
+
+/**
+ * A quantity typed or added by the customer, limited to the stock. `lowered` is true when it had to be
+ * limited, so the page can say why the number changed instead of changing it silently.
+ */
+export function limitQty(requested: number, available: number): { qty: number; lowered: boolean } {
+  const wanted = Math.floor(requested);
+  return { qty: Math.max(0, Math.min(wanted, available)), lowered: wanted > available };
+}
+
+/**
+ * Which parts of the cart page to show. Until the line details have loaded there is nothing to draw; if
+ * loading failed, only the error shows, so no stale lines, total or checkout link stay on screen.
+ */
+export function cartScreen(lineCount: number, load: 'pending' | 'failed' | 'loaded') {
+  const ready = load === 'loaded';
+  return {
+    error: load === 'failed',
+    lines: ready && lineCount > 0,
+    summary: ready && lineCount > 0,
+    empty: lineCount === 0 && load !== 'failed',
+  };
 }

@@ -4,14 +4,14 @@ import ProductCard from '../../components/ProductCard.astro';
 import { bg } from '../../i18n/bg';
 import { formatPrice } from '../../lib/format';
 import { cacheTagHeader, tags } from '../../lib/cache-policy';
-import { hasChoices } from '../../lib/catalog';
+import { hasChoices, optionText } from '../../lib/catalog';
 import { getProductPageData } from '../../lib/products';
 
 export const prerender = false;
 
 // One D1 batch gives the product, its other models and the related products.
 const data = await getProductPageData(Astro.params.slug ?? '');
-if (!data) return new Response('Not found', { status: 404 });
+if (!data) return Astro.rewrite('/404');
 const { product: d, otherModels, related } = data;
 // Saving any product shown here purges this page (see cache-purge.ts).
 Astro.response.headers.set('Cache-Tag', cacheTagHeader([d, ...otherModels, ...related].map((p) => tags.product(p.id))));
@@ -30,7 +30,14 @@ const specs = [
 ].filter(([, v]) => v) as [string, string][];
 
 const inStock = selected.stock > 0;
-const variantData = d.variants.map((v) => ({ id: v.id, key: v.optionKey, price: formatPrice(v.priceCents), stock: v.stock }));
+// `title` is kept with the cart line, to name it if the variant is later removed from sale.
+const variantData = d.variants.map((v) => ({
+  id: v.id,
+  key: v.optionKey,
+  price: formatPrice(v.priceCents),
+  stock: v.stock,
+  title: [d.name, choices ? optionText(d.optionLabel, v.optionValue) : ''].filter(Boolean).join(', '),
+}));
 ---
 <Layout title={`${d.name} — ${bg.siteName}`} description={d.summary} active="shop">
   <div class="container">
@@ -94,6 +101,9 @@ const variantData = d.variants.map((v) => ({ id: v.id, key: v.optionKey, price: 
           <p class="pdp__added" data-added hidden role="status">
             {bg.product.added} <a href="/kolichka/">{bg.product.toCart}</a>
           </p>
+          <p class="pdp__added" data-max data-text={bg.product.maxInCart} hidden role="status">
+            <span></span> <a href="/kolichka/">{bg.product.toCart}</a>
+          </p>
           <small>{bg.product.payNote}</small>
         </div>
         {d.description && <div class="pdp__description">{d.description}</div>}
@@ -145,9 +155,10 @@ const variantData = d.variants.map((v) => ({ id: v.id, key: v.optionKey, price: 
   const btn = document.querySelector<HTMLButtonElement>('[data-add-to-cart]');
   const status = document.querySelector<HTMLElement>('[data-stock-status]');
   const added = document.querySelector<HTMLElement>('[data-added]');
+  const maxed = document.querySelector<HTMLElement>('[data-max]');
   const price = document.querySelector<HTMLElement>('[data-price]');
   const choices = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-variant]'));
-  const variants: { id: string; key: string; price: string; stock: number }[] = JSON.parse(
+  const variants: { id: string; key: string; price: string; stock: number; title: string }[] = JSON.parse(
     document.getElementById('variants')!.textContent!,
   );
 
@@ -177,6 +188,7 @@ const variantData = d.variants.map((v) => ({ id: v.id, key: v.optionKey, price: 
         if (!v || v === current) return;
         show(v);
         if (added) added.hidden = true;
+        if (maxed) maxed.hidden = true;
         // Keep the choice in the URL so it can be shared and survives a reload.
         const url = new URL(location.href);
         url.searchParams.set('v', v.key);
@@ -186,8 +198,14 @@ const variantData = d.variants.map((v) => ({ id: v.id, key: v.optionKey, price: 
 
     btn.addEventListener('click', () => {
       const before = readCart().find((l) => l.id === current.id)?.qty ?? 0;
-      const after = addToCart(current.id, 1, current.stock);
-      if (added && after !== before) added.hidden = false;
+      const after = addToCart(current.id, 1, current.stock, current.title);
+      // At the stock cap nothing is added; say so instead of doing nothing.
+      const atCap = after === before;
+      if (added) added.hidden = atCap;
+      if (maxed) {
+        maxed.querySelector('span')!.textContent = (maxed.dataset.text ?? '').replace('{n}', String(after));
+        maxed.hidden = !atCap;
+      }
     });
 
     liveStock().then((stock) => {

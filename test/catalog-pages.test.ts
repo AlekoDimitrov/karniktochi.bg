@@ -32,20 +32,27 @@ async function addAt(name: string, minute: number, over: { category?: Category; 
 }
 
 describe('listing pages', () => {
-  it(`pages ${PAGE_SIZE} products at a time, newest first, and counts only listed products`, async () => {
+  it(`pages ${PAGE_SIZE} products at a time by default`, async () => {
+    expect(PAGE_SIZE).toBe(24);
+    await addAt('Нож', 1);
+    expect(await listPublicPage(db, live, { page: 1 })).toMatchObject({ total: 1, pages: 1 });
+  });
+
+  // A small page size keeps this fast: creating 50 products one by one took long enough to time out under load.
+  it('pages newest first and counts only listed products', async () => {
     const ids: string[] = [];
-    for (let i = 0; i < 50; i++) ids.push(await addAt(`Нож ${i}`, i));
+    for (let i = 0; i < 10; i++) ids.push(await addAt(`Нож ${i}`, i));
     await addAt('Чернова', 59, { status: 'draft' });
     const noVariant = await addAt('Без варианти', 58);
     await setVariantStatus(db, (await variantIds(db, noVariant))[0], 'archived');
 
-    const first = await listPublicPage(db, live, { page: 1 });
-    expect(first).toMatchObject({ total: 50, page: 1, pages: 3 });
-    expect(first.products.map((p) => p.id)).toEqual(ids.slice().reverse().slice(0, 24));
+    const first = await listPublicPage(db, live, { page: 1, perPage: 4 });
+    expect(first).toMatchObject({ total: 10, page: 1, pages: 3 });
+    expect(first.products.map((p) => p.id)).toEqual(ids.slice().reverse().slice(0, 4));
     expect(first.products.every((p) => p.variants.length === 1)).toBe(true);
-    const last = await listPublicPage(db, live, { page: 3 });
+    const last = await listPublicPage(db, live, { page: 3, perPage: 4 });
     expect(last.products.map((p) => p.id)).toEqual(ids.slice(0, 2).reverse());
-    expect((await listPublicPage(db, live, { page: 4 })).products).toEqual([]);
+    expect((await listPublicPage(db, live, { page: 4, perPage: 4 })).products).toEqual([]);
   });
 
   it('filters by category', async () => {

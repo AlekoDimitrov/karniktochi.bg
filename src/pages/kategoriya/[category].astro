@@ -12,9 +12,9 @@ export const prerender = false;
 
 const category = Astro.params.category as CategoryId;
 const requested = parsePage(Astro.url.searchParams.get('page'));
-if (!categoryIds.includes(category) || requested === null) return new Response('Not found', { status: 404 });
+if (!categoryIds.includes(category) || requested === null) return Astro.rewrite('/404');
 const { products, page, pages } = await getListingPage(requested, category);
-if (page > pages) return new Response('Not found', { status: 404 });
+if (page > pages) return Astro.rewrite('/404');
 Astro.response.headers.set('Cache-Tag', cacheTagHeader([tags.category(category)]));
 const name = bg.categories[category];
 const pageSuffix = page > 1 ? ` — ${bg.shop.pageN.replace('{n}', String(page))}` : '';

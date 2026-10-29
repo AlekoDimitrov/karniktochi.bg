@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { parseCheckout, type CheckoutField, type FieldError } from './checkout-input';
 import { bankTransfer } from './config';
-import { customerEmail, ownerEmail, sendEmail } from './email';
+import { orderEmails, sendEmail } from './email';
 import { orderableVariants } from './catalog';
 import { getOrder, insertOrder, itemTitle, OutOfStockError } from './orders';
 import { visibility } from './products';
@@ -47,20 +47,15 @@ export async function createOrder(raw: unknown, waitUntil: (p: Promise<unknown>)
 async function sendOrderEmails(orderId: number, bank: ReturnType<typeof bankTransfer>) {
   const order = await getOrder(env.DB, orderId);
   if (!order) return;
+  const emails = orderEmails(order, { from: env.EMAIL_FROM, notify: env.SHOP_NOTIFY_EMAIL }, bank);
   if (!env.RESEND_API_KEY) {
-    console.warn(`RESEND_API_KEY is not set; no emails sent for ${order.reference}`);
+    // In `astro dev` without a key, show what would have been sent. Never log customer data in production.
+    if (import.meta.env.DEV) for (const e of emails) console.info(`[dev] Email not sent (no RESEND_API_KEY):\n${JSON.stringify(e, null, 2)}`);
+    else console.warn(`RESEND_API_KEY is not set; no emails sent for ${order.reference}`);
     return;
   }
-  const from = env.EMAIL_FROM;
-  const sends: Promise<void>[] = [];
-  if (env.SHOP_NOTIFY_EMAIL) {
-    sends.push(sendEmail(env.RESEND_API_KEY, { from, to: env.SHOP_NOTIFY_EMAIL, replyTo: order.email ?? undefined, ...ownerEmail(order) }));
-  }
-  if (order.email) {
-    sends.push(sendEmail(env.RESEND_API_KEY, { from, to: order.email, replyTo: env.SHOP_NOTIFY_EMAIL || undefined, ...customerEmail(order, bank) }));
-  }
   // The order is already saved, so a failed email is only logged (visible in Workers observability).
-  for (const r of await Promise.allSettled(sends)) {
+  for (const r of await Promise.allSettled(emails.map((e) => sendEmail(env.RESEND_API_KEY, e)))) {
     if (r.status === 'rejected') console.error(`Email for ${order.reference} failed:`, r.reason);
   }
 }

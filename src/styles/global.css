@@ -157,7 +157,8 @@ h1, h2, h3, p { margin: 0; }
 .sold-out { color: var(--muted); font-weight: 500; }
 
 /* Workshop band */
-.band-purple { background: var(--purple); color: var(--cream); }
+/* clip: the postmark on the workshop print may reach past a phone's edge; trim it instead of scrolling sideways. */
+.band-purple { background: var(--purple); color: var(--cream); overflow-x: clip; }
 .band__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 56px; }
 .band__photo { flex: 1 1 400px; min-width: 0; }
 

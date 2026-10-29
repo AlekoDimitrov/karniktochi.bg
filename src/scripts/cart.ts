@@ -1,7 +1,8 @@
 // Client-side cart, kept in localStorage as [{ id, qty }]. Prices are never stored here:
 // the server recomputes every price from the product files when an order is placed.
 
-export type CartLine = { id: string; qty: number };
+/** `title` is the product name (and option) when it was added, shown if the variant can no longer be bought. */
+export type CartLine = { id: string; qty: number; title?: string };
 
 const KEY = 'kt-cart';
 const EVENT = 'cart:change';
@@ -10,9 +11,9 @@ export function readCart(): CartLine[] {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '[]');
     if (!Array.isArray(raw)) return [];
-    return raw.filter(
-      (l): l is CartLine => typeof l?.id === 'string' && Number.isInteger(l.qty) && l.qty > 0,
-    );
+    return raw
+      .filter((l): l is CartLine => typeof l?.id === 'string' && Number.isInteger(l.qty) && l.qty > 0)
+      .map((l) => (typeof l.title === 'string' ? { id: l.id, qty: l.qty, title: l.title } : { id: l.id, qty: l.qty }));
   } catch {
     return [];
   }
@@ -28,12 +29,14 @@ function writeCart(lines: CartLine[]) {
 }
 
 /** Adds qty of a product, never going above max (the known stock). Returns the new line quantity. */
-export function addToCart(id: string, qty = 1, max = Infinity): number {
+export function addToCart(id: string, qty = 1, max = Infinity, title?: string): number {
   const lines = readCart();
   const line = lines.find((l) => l.id === id);
   const next = Math.min((line?.qty ?? 0) + qty, max);
-  if (line) line.qty = next;
-  else lines.push({ id, qty: next });
+  if (line) {
+    line.qty = next;
+    if (title) line.title = title;
+  } else lines.push(title ? { id, qty: next, title } : { id, qty: next });
   writeCart(lines);
   return next;
 }

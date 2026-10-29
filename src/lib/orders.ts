@@ -285,6 +285,16 @@ export async function getStockLevels(db: D1Database, initialStock: Record<string
   return levels;
 }
 
+/** Highest stock count the admin accepts for one variant. */
+export const MAX_STOCK = 100000;
+
+/** A stock count typed in the admin: a whole number from 0 to MAX_STOCK, else null (nothing is saved). */
+export function parseStockQuantity(value: unknown): number | null {
+  if (typeof value !== 'string' || !/^\s*\d{1,6}\s*$/.test(value)) return null;
+  const n = Number(value);
+  return n <= MAX_STOCK ? n : null;
+}
+
 export async function setStock(db: D1Database, variantId: string, quantity: number) {
   await db
     .prepare('INSERT INTO stock (variant_id, quantity) VALUES (?, ?) ON CONFLICT (variant_id) DO UPDATE SET quantity = excluded.quantity')

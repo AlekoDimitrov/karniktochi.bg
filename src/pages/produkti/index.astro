@@ -11,9 +11,9 @@ import { getListingPage } from '../../lib/products';
 export const prerender = false;
 
 const requested = parsePage(Astro.url.searchParams.get('page'));
-if (requested === null) return new Response('Not found', { status: 404 });
+if (requested === null) return Astro.rewrite('/404');
 const { products, page, pages } = await getListingPage(requested);
-if (page > pages) return new Response('Not found', { status: 404 });
+if (page > pages) return Astro.rewrite('/404');
 Astro.response.headers.set('Cache-Tag', cacheTagHeader([tags.listing]));
 const pageSuffix = page > 1 ? ` — ${bg.shop.pageN.replace('{n}', String(page))}` : '';
 ---

@@ -54,7 +54,7 @@ const t = bg.cart;
 <script>
   import { onCartChange, readCart, removeFromCart, setCart, setQty, type CartLine } from '../../scripts/cart';
   import { fetchCartLines, type CartLines } from '../../scripts/cart-lines';
-  import { cartProblems, fixCart } from '../../lib/cart-stock';
+  import { cartProblems, cartScreen, fixCart, limitQty } from '../../lib/cart-stock';
   import { formatPrice } from '../../lib/format';
 
   // Details for the variants in the cart, with live stock. Filled from /api/cart-lines.
@@ -69,10 +69,28 @@ const t = bg.cart;
   const blocked = $('[data-cart-blocked]');
   const fixedEl = $('[data-cart-fixed]');
   const checkoutLink = $<HTMLAnchorElement>('[data-checkout-link]');
+  const errorEl = $('[data-cart-error]');
+
+  // Shows or hides the parts of the page; after a failed load nothing stale (lines, total, checkout) stays.
+  const show = (lineCount: number, load: 'pending' | 'failed' | 'loaded') => {
+    const s = cartScreen(lineCount, load);
+    errorEl.hidden = !s.error;
+    list.hidden = !s.lines;
+    if (!s.lines) list.replaceChildren();
+    summary.hidden = !s.summary;
+    empty.hidden = !s.empty;
+  };
 
   // Available count per variant that can still be ordered.
   const stock = (): Record<string, number> =>
     Object.fromEntries(Object.values(catalog).map((p) => [p.id, p.stock]));
+  // Lines whose typed quantity was lowered to the stock, with that stock, so the line says why.
+  const lowered = new Map<string, number>();
+  // Name of a line in messages: its current details, else the title saved when it was added.
+  const nameOf = (line: CartLine) => {
+    const p = catalog[line.id];
+    return p ? [p.name, p.option].filter(Boolean).join(', ') : (line.title ?? t.unknownProduct);
+  };
 
   // While the cart has problems the checkout link stays focusable but does nothing.
   checkoutLink.addEventListener('click', (e) => {
@@ -94,7 +112,7 @@ const t = bg.cart;
       q<HTMLButtonElement>('[data-remove]').addEventListener('click', () => removeFromCart(line.id));
       if (!p) {
         img.remove();
-        q('[data-name]').textContent = line.id;
+        q('[data-name]').textContent = nameOf(line);
         warn.textContent = t.unavailable;
         warn.hidden = false;
         qty.closest('label')!.remove();
@@ -116,17 +134,21 @@ const t = bg.cart;
       else qty.disabled = true;
       if (problem?.kind === 'soldOut') warn.textContent = t.soldOut;
       if (problem?.kind === 'over') warn.textContent = t.overStock.replace('{n}', String(problem.available));
+      if (!problem && lowered.has(line.id)) warn.textContent = t.lowered.replaceAll('{n}', String(lowered.get(line.id)));
       warn.hidden = !warn.textContent;
       qty.addEventListener('change', () => {
         const n = Math.floor(Number(qty.value));
-        if (n > 0) setQty(line.id, Math.min(n, p.stock));
-        else removeFromCart(line.id);
+        lowered.delete(line.id);
+        if (n > 0) {
+          const limited = limitQty(n, p.stock);
+          if (limited.lowered) lowered.set(line.id, limited.qty);
+          setQty(line.id, limited.qty);
+        } else removeFromCart(line.id);
       });
       total += p.priceCents * line.qty;
       list.appendChild(li);
     }
-    empty.hidden = lines.length > 0;
-    summary.hidden = lines.length === 0;
+    show(lines.length, 'loaded');
     totalEl.textContent = formatPrice(total);
 
     const isBlocked = problems.size > 0;
@@ -141,14 +163,15 @@ const t = bg.cart;
   };
 
   $('[data-cart-fix]').addEventListener('click', () => {
-    const { lines, fixed } = fixCart(readCart(), stock());
-    const nameOf = (id: string) => (catalog[id] ? [catalog[id].name, catalog[id].option].filter(Boolean).join(', ') : id);
+    const before = readCart();
+    const { lines, fixed } = fixCart(before, stock());
     const items = fixed.map((f) => {
+      const name = nameOf(before.find((l) => l.id === f.id)!);
       const li = document.createElement('li');
       li.textContent =
         f.kind === 'over'
-          ? t.fixedLowered.replace('{name}', nameOf(f.id)).replace('{from}', String(f.qty)).replace('{to}', String(f.available))
-          : (f.kind === 'soldOut' ? t.fixedRemoved : t.fixedUnavailable).replace('{name}', nameOf(f.id));
+          ? t.fixedLowered.replace('{name}', name).replace('{from}', String(f.qty)).replace('{to}', String(f.available))
+          : (f.kind === 'soldOut' ? t.fixedRemoved : t.fixedUnavailable).replace('{name}', name);
       return li;
     });
     const title = document.createElement('strong');
@@ -168,18 +191,16 @@ const t = bg.cart;
   // added in another tab), then draw. Until the first answer the page shows nothing; an empty cart
   // needs no request and shows the empty state right away.
   const asked = new Set<string>();
-  const errorEl = $('[data-cart-error]');
   onCartChange(async (lines) => {
     const missing = lines.map((l) => l.id).filter((id) => !asked.has(id));
     if (missing.length) {
       const got = await fetchCartLines(missing);
       if (!got) {
-        errorEl.hidden = false;
+        show(lines.length, 'failed');
         return;
       }
       missing.forEach((id) => asked.add(id));
       catalog = { ...catalog, ...got };
-      errorEl.hidden = true;
     }
     render(readCart());
   });
