@@ -5,8 +5,8 @@ import { productPurgeTags, purgeTags, stockPurgeTags } from '../src/lib/cache-pu
 const ok = { status: 200, setsCookie: false };
 
 describe('Cache-Control for Workers Cache', () => {
-  it('lets home, listing, category and product pages be cached for 60 s, stale for 600 s', () => {
-    expect(PAGE_CACHE).toBe('public, max-age=60, stale-while-revalidate=600');
+  it('lets Workers Cache keep home, listing, category and product pages for 60 s (stale for 600 s), but not browsers', () => {
+    expect(PAGE_CACHE).toBe('public, max-age=0, s-maxage=60, stale-while-revalidate=600');
     for (const path of ['/', '/produkti/', '/produkti/gyuto-shibata/', '/kategoriya/gotvarski/']) {
       expect(cacheControlFor('GET', path, ok)).toBe(PAGE_CACHE);
       expect(cacheControlFor('HEAD', path, ok)).toBe(PAGE_CACHE);

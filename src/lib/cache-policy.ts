@@ -7,8 +7,13 @@
 // entries, and the Worker version: every deploy starts with an empty cache.
 // Cache-Tag values let an admin save purge exactly the pages that show a product (see cache-purge.ts).
 
-/** Home, listing, category and product pages. Browsers may also keep them for max-age. */
-export const PAGE_CACHE = 'public, max-age=60, stale-while-revalidate=600';
+/**
+ * Home, listing, category and product pages: Workers Cache keeps them for 60 s (s-maxage) and may serve them
+ * stale for 600 s while it refreshes. Browsers get no fresh period (max-age=0), so after an admin save and
+ * purge they see the change on their next visit; a browser that honours stale-while-revalidate (Chrome) may
+ * still show its old copy once while it refetches.
+ */
+export const PAGE_CACHE = 'public, max-age=0, s-maxage=60, stale-while-revalidate=600';
 /** GET /api/stock. */
 export const STOCK_CACHE = 'public, max-age=15';
 export const NO_STORE = 'no-store';

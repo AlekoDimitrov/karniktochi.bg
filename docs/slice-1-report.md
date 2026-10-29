@@ -72,7 +72,7 @@ The hand-written Cache API cache (`page-cache.ts`) is gone. `"cache": { "enabled
 
 | Response | `Cache-Control` |
 |---|---|
-| 200 on `/`, `/produkti/`, `/produkti/<slug>/`, `/kategoriya/<category>/`, GET or HEAD | `public, max-age=60, stale-while-revalidate=600` |
+| 200 on `/`, `/produkti/`, `/produkti/<slug>/`, `/kategoriya/<category>/`, GET or HEAD | `public, max-age=0, s-maxage=60, stale-while-revalidate=600` |
 | 200 on `/api/stock`, GET or HEAD | `public, max-age=15` |
 | `/kolichka/`, `/porachka/*`, every other `/api/*`, unknown paths, any non-GET, any non-200 (404s, redirects), any response with `Set-Cookie` | `no-store` |
 | `/admin/*`, including the 403 | `private, no-store` |
@@ -111,7 +111,7 @@ I checked the headers on every route under `wrangler dev`.
   - `purgeTags(purger, tags)` calls `purge`. It logs a failure or rejection and never throws: the save has already happened, and pages expire on their own within max-age plus stale-while-revalidate.
 - **Where it's used.** The admin stock save calls it today. The product editor in slice 2 should call `purgeTags(cache, productPurgeTags(product, oldCategory))` after a save.
 - **Not verified on Cloudflare.** Local `wrangler dev` and `astro dev` export a `cache` object without `purge()`, so the admin code checks for `purge()` and skips purging locally. Purging is covered by unit tests with a fake.
-- **Purging doesn't reach browsers.** `max-age=60, stale-while-revalidate=600` also lets a visitor's browser reuse a page for 60 s, then show it stale once while it refetches. If edits must show up immediately for visitors who already have the page, use `s-maxage=60, stale-while-revalidate=600` with `max-age=0` instead. Stock on cached pages is corrected from `/api/stock` either way.
+- **Purging doesn't reach browsers.** Pages now send `max-age=0, s-maxage=60, stale-while-revalidate=600`: Workers Cache keeps them for 60 s, browsers get no fresh period. A browser that honours `stale-while-revalidate` for its own cache (Chrome does) may still show its old copy once, for up to 10 minutes after the visit that stored it, while it refetches in the background. Stock on cached pages is corrected from `/api/stock` either way.
 
 ### (iii) Cloudflare Access on `/admin` only
 
@@ -252,7 +252,6 @@ New or changed in this step:
 ## Open decisions
 
 - **Free or Paid plan.** On Free, Workers Cache makes static assets count against 100,000 requests a day (about 8,300 page views); without it, uncached listing pages sit around the 10 ms CPU limit. On Paid, neither matters.
-- **Browser caching after edits:** keep `max-age=60` for browsers, or switch to `s-maxage` so purges take effect for every visitor at once (section 2 (ii)).
 - **Admin pagination** for the stock and orders pages before the catalog and order count grow.
 - **The `listOrders` fix also belongs on `main`**, which has the same 100-order bug and is live code.
 - **Applying `0002` to the remote database** is still to do, after the branch is merged, with `npx wrangler d1 migrations apply karniktochi --remote`.
