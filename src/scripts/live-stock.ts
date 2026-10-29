@@ -1,5 +1,5 @@
-// Live stock from GET /api/stock. Pages are prerendered with build-time stock; this corrects what they show.
-// On failure it resolves to null and the page keeps its build-time state. Checkout re-checks stock anyway.
+// Live stock from GET /api/stock. Pages may come from Workers Cache with older stock; this corrects what they
+// show. On failure it resolves to null and the page keeps the stock it was rendered with. Checkout re-checks stock anyway.
 
 export type StockLevels = Record<string, number>;
 

@@ -11,6 +11,11 @@
 	"observability": {
 		"enabled": true
 	},
+	// Workers Cache in front of the Worker (needs Wrangler 4.69.0+). What may be cached and for how long is set
+	// per response with Cache-Control in src/lib/cache-policy.ts; admin saves purge by Cache-Tag.
+	"cache": {
+		"enabled": true
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",

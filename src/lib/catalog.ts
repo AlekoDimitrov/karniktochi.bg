@@ -198,6 +198,156 @@ export async function getPublicProduct(db: D1Database, id: string, vis: Visibili
   return product && product.variants.length > 0 ? product : null;
 }
 
+// A public product is listed only while it has at least one active variant.
+const LISTED = `${PUBLIC_PRODUCT} AND EXISTS (SELECT 1 FROM variants av WHERE av.product_id = p.id AND av.status = 'active')`;
+const NEWEST = 'ORDER BY p.created_at DESC, p.id';
+
+/** Products per page on /produkti/ and the category pages. */
+export const PAGE_SIZE = 24;
+/** Related products on a product page (same category, other series). */
+export const RELATED_LIMIT = 4;
+/** Other models on a product page (same series). Series are small; this only caps a mistake. */
+export const OTHER_MODELS_LIMIT = 24;
+
+// Statements for the products whose ids `ids` selects (a subquery using ?1 and its own parameters), with their
+// active variants. Both are bound to `args`, so they can go in one batch with other statements.
+function productsAndVariants(db: D1Database, ids: string, args: unknown[]) {
+  return [
+    db.prepare(`SELECT p.* FROM products p WHERE p.id IN (${ids}) ${NEWEST}`).bind(...args),
+    db
+      .prepare(
+        `SELECT ${VARIANT_COLUMNS} FROM variants v LEFT JOIN stock s ON s.variant_id = v.id
+         WHERE v.status = 'active' AND v.product_id IN (${ids}) ORDER BY v.position, v.id`,
+      )
+      .bind(...args),
+  ];
+}
+
+export type ListingPage = { products: Product[]; total: number; page: number; pages: number };
+
+/** One page of listed products, newest first, optionally in one category. Pages start at 1. */
+export async function listPublicPage(
+  db: D1Database,
+  vis: Visibility,
+  { page, category, perPage = PAGE_SIZE }: { page: number; category?: Category; perPage?: number },
+): Promise<ListingPage> {
+  const where = `${LISTED} AND (?2 IS NULL OR p.category = ?2)`;
+  const ids = `SELECT p.id FROM products p WHERE ${where} ${NEWEST} LIMIT ?3 OFFSET ?4`;
+  const args = [vis.includeDemo ? 1 : 0, category ?? null, perPage, (page - 1) * perPage];
+  const [count, products, variants] = await db.batch([
+    db.prepare(`SELECT COUNT(*) AS n FROM products p WHERE ${where}`).bind(args[0], args[1]),
+    ...productsAndVariants(db, ids, args),
+  ]);
+  const total = (count.results[0] as { n: number }).n;
+  return {
+    products: assemble(products.results as ProductRow[], variants.results as VariantRow[]),
+    total,
+    page,
+    pages: Math.max(1, Math.ceil(total / perPage)),
+  };
+}
+
+/** The newest `limit` listed products (the home page). */
+export async function latestPublicProducts(db: D1Database, vis: Visibility, limit: number): Promise<Product[]> {
+  const ids = `SELECT p.id FROM products p WHERE ${LISTED} ${NEWEST} LIMIT ?2`;
+  const [products, variants] = await db.batch(productsAndVariants(db, ids, [vis.includeDemo ? 1 : 0, limit]));
+  return assemble(products.results as ProductRow[], variants.results as VariantRow[]);
+}
+
+export type ProductPageData = { product: Product; otherModels: Product[]; related: Product[] };
+
+/**
+ * Everything a product page shows: the product with its active variants, the other models in its series,
+ * and up to RELATED_LIMIT related products from its category (outside its series). Null if it isn't public.
+ */
+export async function getProductPage(db: D1Database, id: string, vis: Visibility): Promise<ProductPageData | null> {
+  const series = '(SELECT series FROM products WHERE id = ?2)';
+  const category = '(SELECT category FROM products WHERE id = ?2)';
+  const others = `SELECT p.id FROM products p WHERE ${LISTED} AND p.id <> ?2 AND p.series <> '' AND p.series = ${series}
+    ${NEWEST} LIMIT ${OTHER_MODELS_LIMIT}`;
+  const related = `SELECT p.id FROM products p WHERE ${LISTED} AND p.id <> ?2 AND p.category = ${category}
+    AND (p.series = '' OR p.series <> ${series}) ${NEWEST} LIMIT ${RELATED_LIMIT}`;
+  const args = [vis.includeDemo ? 1 : 0, id];
+  const [self, selfVariants, otherRows, otherVariants, relatedRows, relatedVariants] = await db.batch([
+    ...productsAndVariants(db, `SELECT p.id FROM products p WHERE p.id = ?2 AND ${LISTED}`, args),
+    ...productsAndVariants(db, others, args),
+    ...productsAndVariants(db, related, args),
+  ]);
+  const [product] = assemble(self.results as ProductRow[], selfVariants.results as VariantRow[]);
+  if (!product) return null;
+  return {
+    product,
+    otherModels: assemble(otherRows.results as ProductRow[], otherVariants.results as VariantRow[]),
+    related: assemble(relatedRows.results as ProductRow[], relatedVariants.results as VariantRow[]),
+  };
+}
+
+/** ?page= value to a page number: absent is 1; anything but a plain positive integer is null (a 404). */
+export function parsePage(value: string | null): number | null {
+  if (value === null) return 1;
+  return /^[1-9]\d{0,4}$/.test(value) ? Number(value) : null;
+}
+
+/** What the cart and checkout show for a variant. */
+export type CartLineInfo = {
+  id: string;
+  productId: string;
+  name: string;
+  brand: string;
+  /** e.g. "Дължина: 210 мм"; empty for products without choices. */
+  option: string;
+  url: string;
+  priceCents: number;
+  stock: number;
+  /** No product photos yet. */
+  photo: string | null;
+};
+
+/** Most variant ids one /api/cart-lines request may ask for. */
+export const CART_LINES_MAX = 50;
+
+/** Comma-separated variant ids from ?ids=, de-duplicated; null if missing, malformed or more than CART_LINES_MAX. */
+export function parseCartIds(value: string | null): string[] | null {
+  if (!value) return null;
+  const ids = [...new Set(value.split(','))];
+  if (ids.length > CART_LINES_MAX || ids.some((id) => !/^[a-z0-9_-]{1,64}$/.test(id))) return null;
+  return ids;
+}
+
+/** Cart line details for the public, active variants among `ids` (others are left out). */
+export async function cartLines(db: D1Database, ids: string[], vis: Visibility): Promise<Record<string, CartLineInfo>> {
+  if (!ids.length) return {};
+  const rows = await db
+    .prepare(
+      `SELECT v.id, v.product_id, v.option_value, v.option_key, v.price_cents, COALESCE(s.quantity, 0) AS stock,
+         p.name, p.brand, p.option_label,
+         (SELECT COUNT(*) FROM variants x WHERE x.product_id = p.id AND x.status = 'active') AS choices
+       FROM variants v JOIN products p ON p.id = v.product_id LEFT JOIN stock s ON s.variant_id = v.id
+       WHERE v.id IN (${ids.map((_, i) => `?${i + 2}`).join(',')}) AND v.status = 'active' AND ${PUBLIC_PRODUCT}`,
+    )
+    .bind(vis.includeDemo ? 1 : 0, ...ids)
+    .all<{
+      id: string; product_id: string; option_value: string; option_key: string; price_cents: number; stock: number;
+      name: string; brand: string; option_label: string; choices: number;
+    }>();
+  return Object.fromEntries(
+    rows.results.map((r) => [
+      r.id,
+      {
+        id: r.id,
+        productId: r.product_id,
+        name: r.name,
+        brand: r.brand,
+        option: r.choices > 1 ? optionText(r.option_label, r.option_value) : '',
+        url: `/produkti/${r.product_id}/${r.choices > 1 ? `?v=${encodeURIComponent(r.option_key)}` : ''}`,
+        priceCents: r.price_cents,
+        stock: r.stock,
+        photo: null,
+      },
+    ]),
+  );
+}
+
 /** Every product in any status with all its variants, for the admin. Newest first. */
 export async function listAllProducts(db: D1Database): Promise<Product[]> {
   const [products, variants] = await db.batch([
@@ -364,6 +514,11 @@ export async function setProductStatus(db: D1Database, id: string, status: Produ
     .prepare(`UPDATE products SET status = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?`)
     .bind(status, id)
     .run();
+}
+
+/** The product a variant (in any status) belongs to, or null if there is no such variant. */
+export async function variantProductId(db: D1Database, id: string): Promise<string | null> {
+  return (await db.prepare('SELECT product_id FROM variants WHERE id = ?').bind(id).first<string>('product_id')) ?? null;
 }
 
 export async function setVariantStatus(db: D1Database, id: string, status: VariantStatus) {

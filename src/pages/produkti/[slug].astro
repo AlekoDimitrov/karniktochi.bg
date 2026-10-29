@@ -3,27 +3,23 @@ import Layout from '../../layouts/Layout.astro';
 import ProductCard from '../../components/ProductCard.astro';
 import { bg } from '../../i18n/bg';
 import { formatPrice } from '../../lib/format';
+import { cacheTagHeader, tags } from '../../lib/cache-policy';
 import { hasChoices } from '../../lib/catalog';
-import { getProducts } from '../../lib/products';
+import { getProductPageData } from '../../lib/products';
 
 export const prerender = false;
 
-// One D1 read gives the product, its other models and the related products.
-const all = await getProducts();
-const product = all.find((p) => p.id === Astro.params.slug);
-if (!product) return new Response('Not found', { status: 404 });
-const d = product;
+// One D1 batch gives the product, its other models and the related products.
+const data = await getProductPageData(Astro.params.slug ?? '');
+if (!data) return new Response('Not found', { status: 404 });
+const { product: d, otherModels, related } = data;
+// Saving any product shown here purges this page (see cache-purge.ts).
+Astro.response.headers.set('Cache-Tag', cacheTagHeader([d, ...otherModels, ...related].map((p) => tags.product(p.id))));
 
 // The variant from ?v=…, else the first one in stock, else the first.
 const key = Astro.url.searchParams.get('v');
 const selected = d.variants.find((v) => v.optionKey === key) ?? d.variants.find((v) => v.stock > 0) ?? d.variants[0];
 const choices = hasChoices(d);
-
-const otherModels = d.series ? all.filter((p) => p.id !== d.id && p.series === d.series) : [];
-const related = all
-  .filter((p) => p.id !== d.id && !otherModels.includes(p))
-  .sort((a, b) => Number(b.category === d.category) - Number(a.category === d.category))
-  .slice(0, 4);
 
 const specs = [
   [bg.product.specs.type, d.type],
@@ -130,12 +126,16 @@ const variantData = d.variants.map((v) => ({ id: v.id, key: v.optionKey, price: 
       </section>
     )
   }
-  <section class="related section" style="padding: 72px 0 88px">
-    <div class="container">
-      <h2 style="margin-bottom: 32px">{bg.product.related}</h2>
-      <div class="grid">{related.map((p) => <ProductCard product={p} />)}</div>
-    </div>
-  </section>
+  {
+    related.length > 0 && (
+      <section class="related section" style="padding: 72px 0 88px">
+        <div class="container">
+          <h2 style="margin-bottom: 32px">{bg.product.related}</h2>
+          <div class="grid">{related.map((p) => <ProductCard product={p} />)}</div>
+        </div>
+      </section>
+    )
+  }
   <script type="application/json" id="variants" set:html={JSON.stringify(variantData)} />
 </Layout>
 

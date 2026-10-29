@@ -21,7 +21,7 @@ function expectHidden(file, html, attrs) {
 
 // These pages are rendered per request, so check their templates.
 const pages = [
-  ['src/pages/kolichka/index.astro', ['data-cart-empty', 'data-cart-summary', 'data-cart-fixed', 'data-cart-blocked', 'data-warn', 'data-option']],
+  ['src/pages/kolichka/index.astro', ['data-cart-error', 'data-cart-empty', 'data-cart-summary', 'data-cart-fixed', 'data-cart-blocked', 'data-warn', 'data-option']],
   ['src/pages/produkti/[slug].astro', ['data-added']],
   ['src/pages/porachka/index.astro', ['data-empty', 'data-checkout', 'data-form-error']],
 ];

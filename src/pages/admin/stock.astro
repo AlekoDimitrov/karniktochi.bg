@@ -1,23 +1,33 @@
 ---
-import { env } from 'cloudflare:workers';
+import * as workers from 'cloudflare:workers';
 import AdminLayout from '../../layouts/AdminLayout.astro';
-import { listAllProducts, optionText } from '../../lib/catalog';
+import { listAllProducts, optionText, variantProductId } from '../../lib/catalog';
+import { purgeTags, stockPurgeTags } from '../../lib/cache-purge';
 import { getStockLevels, setStock } from '../../lib/orders';
 
 export const prerender = false;
 
-// Every variant of every product, in any status.
-const rows = (await listAllProducts(env.DB)).flatMap((p) =>
-  p.variants.map((v) => ({ id: v.id, title: [p.brand, p.name, optionText(p.optionLabel, v.optionValue)].filter(Boolean).join(' ') })),
-);
+const { env } = workers;
+// Workers Cache's purge API; a runtime without it (e.g. an older local workerd) just skips purging.
+const purger = 'cache' in workers ? workers.cache : undefined;
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const id = String(form.get('id'));
   const qty = Number(form.get('quantity'));
-  if (rows.some((r) => r.id === id) && Number.isInteger(qty) && qty >= 0 && qty <= 100000) await setStock(env.DB, id, qty);
+  const productId = await variantProductId(env.DB, id);
+  if (productId && Number.isInteger(qty) && qty >= 0 && qty <= 100000) {
+    await setStock(env.DB, id, qty);
+    // Cached pages and /api/stock show the new count right away instead of after max-age.
+    await purgeTags(purger, stockPurgeTags(productId));
+  }
   return Astro.redirect(`/admin/stock/?saved=${encodeURIComponent(id)}#p-${id}`, 303);
 }
+
+// Every variant of every product, in any status.
+const rows = (await listAllProducts(env.DB)).flatMap((p) =>
+  p.variants.map((v) => ({ id: v.id, title: [p.brand, p.name, optionText(p.optionLabel, v.optionValue)].filter(Boolean).join(' ') })),
+);
 
 const levels = await getStockLevels(env.DB, {});
 const saved = Astro.url.searchParams.get('saved');

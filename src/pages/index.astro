@@ -3,12 +3,14 @@ import Layout from '../layouts/Layout.astro';
 import HeroBubble from '../components/HeroBubble.astro';
 import ProductCard from '../components/ProductCard.astro';
 import { bg, categoryIds } from '../i18n/bg';
-import { getProducts } from '../lib/products';
+import { cacheTagHeader, tags } from '../lib/cache-policy';
+import { getLatestProducts } from '../lib/products';
 import '../styles/caveat.css';
 
 export const prerender = false;
 
-const latest = (await getProducts()).slice(0, 4);
+const latest = await getLatestProducts(4);
+Astro.response.headers.set('Cache-Tag', cacheTagHeader([tags.home]));
 // Until the photo's year is known, the postmark shows dots instead of a made-up number
 const { workshopPostmarkPlace, workshopPostmarkYear } = bg.home;
 const postmarkRing = `${workshopPostmarkPlace} · ${workshopPostmarkYear || '• • •'} · `.repeat(2).trim();

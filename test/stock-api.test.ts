@@ -19,10 +19,11 @@ const live = { includeDemo: false };
 const body = async (res: Response) => (await res.json()) as Record<string, number>;
 
 describe('GET /api/stock', () => {
-  it('returns stock per public variant, cacheable for 20 seconds', async () => {
+  it('returns stock per public variant, cacheable for 15 seconds and tagged for purging', async () => {
     const res = await stockResponse(db, live);
     expect(res.status).toBe(200);
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=20');
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=15');
+    expect(res.headers.get('Cache-Tag')).toBe('stock');
     expect(res.headers.get('Content-Type')).toContain('application/json');
     expect(await body(res)).toEqual({ [gyuto]: 3, [petty]: 1 });
   });

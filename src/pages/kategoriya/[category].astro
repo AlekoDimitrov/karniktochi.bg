@@ -2,17 +2,24 @@
 import Layout from '../../layouts/Layout.astro';
 import ProductCard from '../../components/ProductCard.astro';
 import CategoryChips from '../../components/CategoryChips.astro';
+import Pagination from '../../components/Pagination.astro';
 import { bg, categoryIds, type CategoryId } from '../../i18n/bg';
-import { getProducts } from '../../lib/products';
+import { cacheTagHeader, tags } from '../../lib/cache-policy';
+import { parsePage } from '../../lib/catalog';
+import { getListingPage } from '../../lib/products';
 
 export const prerender = false;
 
 const category = Astro.params.category as CategoryId;
-if (!categoryIds.includes(category)) return new Response('Not found', { status: 404 });
-const products = (await getProducts()).filter((p) => p.category === category);
+const requested = parsePage(Astro.url.searchParams.get('page'));
+if (!categoryIds.includes(category) || requested === null) return new Response('Not found', { status: 404 });
+const { products, page, pages } = await getListingPage(requested, category);
+if (page > pages) return new Response('Not found', { status: 404 });
+Astro.response.headers.set('Cache-Tag', cacheTagHeader([tags.category(category)]));
 const name = bg.categories[category];
+const pageSuffix = page > 1 ? ` — ${bg.shop.pageN.replace('{n}', String(page))}` : '';
 ---
-<Layout title={`${name} — ${bg.siteName}`} active="shop">
+<Layout title={`${name}${pageSuffix} — ${bg.siteName}`} active="shop">
   <section class="page-title on-dark">
     <div class="page-title__inner">
       <span class="eyebrow">{bg.shop.eyebrow}</span>
@@ -28,7 +35,10 @@ const name = bg.categories[category];
   <div class="container" style="padding-top: 40px; padding-bottom: 96px">
     {
       products.length ? (
-        <div class="grid">{products.map((p) => <ProductCard product={p} />)}</div>
+        <>
+          <div class="grid">{products.map((p) => <ProductCard product={p} />)}</div>
+          <Pagination page={page} pages={pages} base={`/kategoriya/${category}/`} />
+        </>
       ) : (
         <p>{bg.shop.empty}</p>
       )

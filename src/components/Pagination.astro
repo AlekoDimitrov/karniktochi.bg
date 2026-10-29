@@ -1,0 +1,31 @@
+---
+import { bg } from '../i18n/bg';
+interface Props { page: number; pages: number; base: string }
+const { page, pages, base } = Astro.props;
+
+// Page 1 is the bare URL so it stays one cache entry; the others are ?page=N.
+const href = (n: number) => (n === 1 ? base : `${base}?page=${n}`);
+// First, last and two either side of the current page; gaps become an ellipsis.
+const shown = [...Array(pages).keys()].map((i) => i + 1).filter((n) => n === 1 || n === pages || Math.abs(n - page) <= 2);
+---
+{
+  pages > 1 && (
+    <nav class="pagination" aria-label={bg.shop.pages}>
+      {page > 1 ? <a class="chip" href={href(page - 1)} rel="prev">{bg.shop.prevPage}</a> : null}
+      {shown.map((n, i) => (
+        <>
+          {i > 0 && n - shown[i - 1] > 1 && <span class="pagination__gap" aria-hidden="true">…</span>}
+          <a
+            class="chip"
+            href={href(n)}
+            aria-current={n === page ? 'page' : undefined}
+            aria-label={bg.shop.pageN.replace('{n}', String(n))}
+          >
+            {n}
+          </a>
+        </>
+      ))}
+      {page < pages ? <a class="chip" href={href(page + 1)} rel="next">{bg.shop.nextPage}</a> : null}
+    </nav>
+  )
+}

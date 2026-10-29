@@ -235,6 +235,9 @@ h1, h2, h3, p { margin: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 10px; }
 .chip { display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px; border: 1.5px solid rgba(23, 35, 31, 0.4); border-radius: 999px; font-weight: 500; }
 .chip[aria-current='page'] { background: var(--ink); border-color: var(--ink); color: var(--cream); }
+.pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin-top: 56px; }
+.pagination .chip { justify-content: center; min-width: 44px; padding: 0 16px; }
+.pagination__gap { padding: 0 4px; color: var(--muted); }
 .toolbar__sort { font-size: 15px; color: var(--muted); }
 
 /* Product page */

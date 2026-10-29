@@ -2,16 +2,13 @@
 import Layout from '../../layouts/Layout.astro';
 import { bg } from '../../i18n/bg';
 import { bankTransfer } from '../../lib/config';
-import { getCatalog } from '../../lib/products';
 
-// Rendered per request so the ENABLE_BANK_TRANSFER switch takes effect without a rebuild.
+// Rendered per request so the ENABLE_BANK_TRANSFER switch takes effect without a rebuild. Never cached.
+// The order summary comes from /api/cart-lines in the browser.
 export const prerender = false;
 
 const t = bg.checkout;
 const bankEnabled = bankTransfer() !== null;
-const catalog = Object.fromEntries(
-  Object.values(await getCatalog()).map((v) => [v.id, { name: v.name, option: v.option, priceCents: v.priceCents, stock: v.stock }]),
-);
 ---
 <Layout title={`${t.title} — ${bg.siteName}`} active="cart">
   <div class="container narrow">
@@ -94,19 +91,19 @@ const catalog = Object.fromEntries(
       <small class="muted">{t.callNote}</small>
     </form>
   </div>
-  <script type="application/json" id="checkout-data" set:html={JSON.stringify({ catalog, t })} />
+  <script type="application/json" id="checkout-data" set:html={JSON.stringify({ t })} />
 </Layout>
 
 <script>
   import { clearCart, readCart } from '../../scripts/cart';
-  import { liveStock } from '../../scripts/live-stock';
+  import { fetchCartLines, type CartLines } from '../../scripts/cart-lines';
   import { cartProblems } from '../../lib/cart-stock';
   import { formatPrice } from '../../lib/format';
 
-  const { catalog, t } = JSON.parse(document.getElementById('checkout-data')!.textContent!) as {
-    catalog: Record<string, { name: string; option: string; priceCents: number; stock: number }>;
+  const { t } = JSON.parse(document.getElementById('checkout-data')!.textContent!) as {
     t: Record<string, string> & { errors: Record<string, string> };
   };
+  let catalog: CartLines = {};
   const form = document.querySelector<HTMLFormElement>('[data-checkout]')!;
   const formError = document.querySelector<HTMLElement>('[data-form-error]')!;
   const submit = document.querySelector<HTMLButtonElement>('[data-submit]')!;
@@ -120,8 +117,14 @@ const catalog = Object.fromEntries(
       document.querySelector<HTMLElement>('[data-empty]')!.hidden = false;
       return;
     }
-    const live = await liveStock();
-    const stock = Object.fromEntries(Object.entries(catalog).map(([id, p]) => [id, live?.[id] ?? p.stock]));
+    // If the details can't be loaded, the cart page says so.
+    const got = await fetchCartLines(lines.map((l) => l.id));
+    if (!got) {
+      location.replace('/kolichka/');
+      return;
+    }
+    catalog = got;
+    const stock = Object.fromEntries(Object.values(catalog).map((p) => [p.id, p.stock]));
     if (cartProblems(lines, stock).length > 0) {
       location.replace('/kolichka/');
       return;
