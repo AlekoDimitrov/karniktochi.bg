@@ -11,6 +11,7 @@
     "preview": "astro preview",
     "astro": "astro",
     "generate-types": "wrangler types --strict-vars=false",
+    "seed:dev": "wrangler d1 execute karniktochi --local --file scripts/seed-dev.sql",
     "test": "vitest run"
   },
   "dependencies": {
