@@ -259,10 +259,10 @@ export async function listOrders(db: D1Database, status?: OrderStatus, limit = 2
     .bind(...params)
     .all<OrderRow>();
   if (!orders.results.length) return [];
-  const ids = orders.results.map((o) => o.id);
+  // The same selection as a subquery: binding every order id would pass D1's limit of 100 bound parameters.
   const items = await db
-    .prepare(`SELECT * FROM order_items WHERE order_id IN (${ids.map(() => '?').join(',')})`)
-    .bind(...ids)
+    .prepare(`SELECT * FROM order_items WHERE order_id IN (SELECT id FROM orders ${where} ORDER BY id DESC LIMIT ?)`)
+    .bind(...params)
     .all<ItemRow>();
   return orders.results.map((o) => toOrder(o, items.results));
 }
