@@ -55,7 +55,16 @@ const latest = (await getProducts()).slice(0, 4);
 
   <section class="band-purple on-dark section" id="workshop">
     <div class="container band__inner">
-      <div class="band__photo">{bg.home.workshopPhoto}<br />Ръце върху камъка, 3:2</div>
+      <div class="band__photo">
+        <img
+          src="/images/workshop.webp"
+          width="613"
+          height="600"
+          loading="lazy"
+          decoding="async"
+          alt="Работилницата на Карник Точи: майстор заточва нож на шмиргел"
+        />
+      </div>
       <div class="band__copy">
         <span class="eyebrow">{bg.home.workshopEyebrow}</span>
         <h2>{bg.home.workshopTitle}</h2>

@@ -160,10 +160,10 @@ h1, h2, h3, p { margin: 0; }
 .band-purple { background: var(--purple); color: var(--cream); }
 .band__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 56px; }
 .band__photo {
-  flex: 1 1 400px; min-width: 0; aspect-ratio: 3 / 2; background: #5f3f8a; border: 1px dashed rgba(246, 245, 239, 0.45);
-  border-radius: var(--radius); display: flex; align-items: center; justify-content: center; text-align: center;
-  padding: 24px; font-size: 15px; color: #ebe3f5;
+  flex: 1 1 400px; min-width: 0; aspect-ratio: 1 / 1; background: #5f3f8a; border: 1px solid rgba(246, 245, 239, 0.3);
+  border-radius: var(--radius); overflow: hidden;
 }
+.band__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .band__copy { flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .band__copy h2 { font-weight: 700; font-size: clamp(28px, 3.2vw, 40px); }
 .band__copy p { font-size: 18px; color: #ebe3f5; }
