@@ -7,6 +7,10 @@ import { getProducts } from '../lib/products';
 import '../styles/caveat.css';
 
 const latest = (await getProducts()).slice(0, 4);
+// Until the photo's year is known, the postmark shows dots instead of a made-up number
+const { workshopCaption, workshopPostmarkPlace, workshopPostmarkYear } = bg.home;
+const caption = [workshopCaption, workshopPostmarkYear].filter(Boolean).join(' ');
+const postmarkRing = `${workshopPostmarkPlace} · ${workshopPostmarkYear || '• • •'} · `.repeat(2).trim();
 ---
 <Layout active="home">
   <section class="hero on-dark">
@@ -69,7 +73,7 @@ const latest = (await getProducts()).slice(0, 4);
             />
             <span class="print__corners" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
           </div>
-          <figcaption class="print__caption">{bg.home.workshopCaption}</figcaption>
+          <figcaption class="print__caption">{caption}</figcaption>
           <div class="stamp" aria-hidden="true">
             <div class="stamp__paper">
               <div class="stamp__inner">
@@ -85,7 +89,7 @@ const latest = (await getProducts()).slice(0, 4);
             <circle cx="46" cy="46" r="42" stroke-width="2.5" />
             <circle cx="46" cy="46" r="24" stroke-width="1.5" />
             <text fill="currentColor" stroke="none" font-size="11" font-weight="700" textLength="205" lengthAdjust="spacing">
-              <textPath href="#postmark-ring">СОФИЯ · 1939 · СОФИЯ · 1939 ·</textPath>
+              <textPath href="#postmark-ring">{postmarkRing}</textPath>
             </text>
             <path d="M94 36q10.5 -7 21 0t21 0t21 0t21 0M94 56q10.5 -7 21 0t21 0t21 0t21 0" stroke-width="2.5" />
           </svg>
