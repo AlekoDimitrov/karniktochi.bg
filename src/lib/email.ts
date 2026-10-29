@@ -1,7 +1,7 @@
 // Order emails, sent through the Resend HTTP API. All text is Bulgarian.
 import { formatPrice } from './format';
 import { formatBgPhone } from './checkout-input';
-import type { Order } from './orders';
+import { itemTitle, type Order } from './orders';
 import type { BankDetails } from './config';
 
 type Email = { from: string; to: string; subject: string; text: string; html: string; replyTo?: string };
@@ -29,7 +29,7 @@ const deliveryLine = (o: Order) =>
   `${o.deliveryMethod === 'office' ? 'До офис на куриер' : 'До адрес'}: ${o.city}, ${o.deliveryDetails}`;
 const paymentLine = (o: Order) => (o.paymentMethod === 'cod' ? 'Наложен платеж' : 'Банков превод');
 const itemLines = (o: Order) =>
-  o.items.map((i) => `${i.quantity} × ${i.name} — ${formatPrice(i.unitPriceCents * i.quantity)}`);
+  o.items.map((i) => `${i.quantity} × ${itemTitle(i)} — ${formatPrice(i.unitPriceCents * i.quantity)}`);
 
 const bankLines = (o: Order, bank: BankDetails) => [
   `Получател: ${bank.holder}`,

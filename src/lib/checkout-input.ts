@@ -33,7 +33,8 @@ export type CheckoutInput = {
   deliveryDetails: string;
   customerNote: string;
   paymentMethod: PaymentMethod;
-  items: { productId: string; quantity: number }[];
+  /** Cart lines by variant id. */
+  items: { variantId: string; quantity: number }[];
 };
 
 export type FieldError = 'required' | 'phone' | 'email' | 'tooLong' | 'choice' | 'items';
@@ -101,7 +102,7 @@ export function parseCheckout(
       deliveryDetails,
       customerNote,
       paymentMethod: paymentMethod as PaymentMethod,
-      items: [...qty].map(([productId, quantity]) => ({ productId, quantity })),
+      items: [...qty].map(([variantId, quantity]) => ({ variantId, quantity })),
     },
   };
 }

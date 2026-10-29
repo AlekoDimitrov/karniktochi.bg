@@ -1,40 +1,55 @@
-import { getCollection, type CollectionEntry } from 'astro:content';
+// The storefront's view of the catalog. Everything reads D1 through src/lib/catalog.ts.
+import { env } from 'cloudflare:workers';
+import {
+  getPublicProduct,
+  listPublicProducts,
+  optionText,
+  publicStock,
+  type Product,
+  type Visibility,
+} from './catalog';
 
-export type Product = CollectionEntry<'products'>;
+export type { Product } from './catalog';
 
-/**
- * Returns all products, newest first.
- * Launch guard: with LAUNCH=1 set (Cloudflare build variable for production), the build
- * FAILS if any demo product is still present, so fake products can never go live.
- */
-export async function getProducts(): Promise<Product[]> {
-  const all = await getCollection('products');
-  if (import.meta.env.LAUNCH === '1' && all.some((p) => p.data.placeholder)) {
-    throw new Error('LAUNCH=1 but demo products (placeholder: true) still exist in src/content/products');
-  }
-  return all.sort((a, b) => b.data.addedAt.getTime() - a.data.addedAt.getTime());
-}
+/** Demo products show until the site is built with LAUNCH=1; after that they are left out everywhere. */
+export const visibility: Visibility = { includeDemo: import.meta.env.LAUNCH !== '1' };
 
-/** What the browser needs to show a product in the cart and checkout. Built at build time. */
+/** Published products, newest first. */
+export const getProducts = (): Promise<Product[]> => listPublicProducts(env.DB, visibility);
+export const getProduct = (id: string): Promise<Product | null> => getPublicProduct(env.DB, id, visibility);
+export const getPublicStock = () => publicStock(env.DB, visibility);
+
+/** What the browser needs to show a cart line, per variant id. */
 export type CatalogItem = {
   id: string;
+  productId: string;
   name: string;
   brand: string;
+  /** e.g. "Дължина: 210 мм"; empty for products without choices. */
+  option: string;
+  url: string;
   priceCents: number;
   stock: number;
   thumb?: string;
 };
 
-export async function getCatalog(): Promise<Record<string, CatalogItem>> {
-  const { getImage } = await import('astro:assets');
-  const products = await getProducts();
-  const entries = await Promise.all(
-    products.map(async (p) => {
-      const img = p.data.images[0];
-      const thumb = img ? (await getImage({ src: img, width: 160 })).src : undefined;
-      const { name, brand, priceCents, stock } = p.data;
-      return [p.id, { id: p.id, name, brand, priceCents, stock, thumb }] as const;
-    }),
-  );
-  return Object.fromEntries(entries);
+export function toCatalog(products: Product[]): Record<string, CatalogItem> {
+  const items: Record<string, CatalogItem> = {};
+  for (const p of products) {
+    for (const v of p.variants) {
+      items[v.id] = {
+        id: v.id,
+        productId: p.id,
+        name: p.name,
+        brand: p.brand,
+        option: p.variants.length > 1 ? optionText(p.optionLabel, v.optionValue) : '',
+        url: `/produkti/${p.id}/${p.variants.length > 1 ? `?v=${encodeURIComponent(v.optionKey)}` : ''}`,
+        priceCents: v.priceCents,
+        stock: v.stock,
+      };
+    }
+  }
+  return items;
 }
+
+export const getCatalog = async () => toCatalog(await getProducts());

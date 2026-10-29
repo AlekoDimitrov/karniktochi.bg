@@ -34,7 +34,7 @@ describe('parseCheckout', () => {
 
   it('defaults to cash on delivery and merges duplicate lines', () => {
     const r = parseCheckout(valid, { bankTransfer: false });
-    expect(r.ok && r.value).toMatchObject({ paymentMethod: 'cod', email: null, items: [{ productId: 'a', quantity: 3 }] });
+    expect(r.ok && r.value).toMatchObject({ paymentMethod: 'cod', email: null, items: [{ variantId: 'a', quantity: 3 }] });
   });
 
   it('rejects bank transfer when it is switched off', () => {

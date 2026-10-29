@@ -22,7 +22,14 @@ const order = (items: [string, number][]): NewOrder => ({
   deliveryDetails: 'Еконт, офис Лозенец',
   customerNote: '',
   paymentMethod: 'cod',
-  items: items.map(([productId, quantity]) => ({ productId, name: productId, unitPriceCents: 10000, quantity })),
+  items: items.map(([variantId, quantity]) => ({
+    variantId,
+    productId: variantId,
+    name: variantId,
+    optionLabel: '',
+    unitPriceCents: 10000,
+    quantity,
+  })),
 });
 
 let db: D1Database;
@@ -30,7 +37,10 @@ let dispose: () => Promise<void>;
 beforeEach(async () => ({ db, dispose } = await freshDb()));
 afterEach(() => dispose());
 
-const stock = () => getStockLevels(db, fileStock);
+const stock = async () => {
+  const levels = await getStockLevels(db, fileStock);
+  return { gyuto: levels.gyuto, petty: levels.petty };
+};
 const count = async (table: string) =>
   (await db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).first<{ n: number }>())!.n;
 
@@ -49,7 +59,7 @@ describe('placing an order', () => {
     await insertOrder(db, order([['gyuto', 2]]), fileStock);
     const attempt = insertOrder(db, order([['petty', 1], ['gyuto', 2]]), fileStock);
     await expect(attempt).rejects.toBeInstanceOf(OutOfStockError);
-    await expect(attempt).rejects.toMatchObject({ productIds: ['gyuto'] });
+    await expect(attempt).rejects.toMatchObject({ variantIds: ['gyuto'] });
     expect(await stock()).toEqual({ gyuto: 1, petty: 1 });
     expect(await count('orders')).toBe(1);
     expect(await count('order_items')).toBe(1);

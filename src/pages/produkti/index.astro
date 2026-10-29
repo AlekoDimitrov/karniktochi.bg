@@ -5,6 +5,8 @@ import CategoryChips from '../../components/CategoryChips.astro';
 import { bg } from '../../i18n/bg';
 import { getProducts } from '../../lib/products';
 
+export const prerender = false;
+
 const products = await getProducts();
 ---
 <Layout title={`${bg.shop.title} — ${bg.siteName}`} active="shop">

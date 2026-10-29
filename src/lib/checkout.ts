@@ -2,8 +2,9 @@ import { env } from 'cloudflare:workers';
 import { parseCheckout, type CheckoutField, type FieldError } from './checkout-input';
 import { bankTransfer } from './config';
 import { customerEmail, ownerEmail, sendEmail } from './email';
-import { getOrder, insertOrder, OutOfStockError } from './orders';
-import { getProducts } from './products';
+import { orderableVariants } from './catalog';
+import { getOrder, insertOrder, itemTitle, OutOfStockError } from './orders';
+import { visibility } from './products';
 
 export type CreateOrderResult =
   | { ok: true; publicId: string; reference: string }
@@ -11,7 +12,7 @@ export type CreateOrderResult =
   | { ok: false; outOfStock: string[] };
 
 /**
- * The one entry point for placing an order: validate, price from the product files, save and reserve
+ * The one entry point for placing an order: validate, price from D1, save and reserve
  * stock, then send the emails in the background.
  * Rate limiting or a captcha check belongs at the top of this function.
  */
@@ -21,20 +22,21 @@ export async function createOrder(raw: unknown, waitUntil: (p: Promise<unknown>)
   if (!parsed.ok) return parsed;
   const input = parsed.value;
 
-  // Prices and names always come from the product files, never from the browser.
-  const products = new Map((await getProducts()).map((p) => [p.id, p.data]));
-  if (input.items.some((i) => !products.has(i.productId))) return { ok: false, errors: { items: 'items' } };
+  // Prices and names always come from D1, never from the browser. Drafts, archived products and
+  // archived variants can't be ordered.
+  const variants = await orderableVariants(env.DB, input.items.map((i) => i.variantId), visibility);
+  if (input.items.some((i) => !variants.has(i.variantId))) return { ok: false, errors: { items: 'items' } };
   const items = input.items.map((i) => {
-    const p = products.get(i.productId)!;
-    return { productId: i.productId, name: `${p.brand} ${p.name}`, unitPriceCents: p.priceCents, quantity: i.quantity };
+    const { variantId, productId, name, optionLabel, priceCents } = variants.get(i.variantId)!;
+    return { variantId, productId, name, optionLabel, unitPriceCents: priceCents, quantity: i.quantity };
   });
-  const fileStock = Object.fromEntries([...products].map(([id, p]) => [id, p.stock]));
 
   let placed;
   try {
-    placed = await insertOrder(env.DB, { ...input, items }, fileStock);
+    // Every catalog variant has a stock row, so there is no starting stock to pass.
+    placed = await insertOrder(env.DB, { ...input, items }, {});
   } catch (e) {
-    if (e instanceof OutOfStockError) return { ok: false, outOfStock: e.productIds.map((id) => products.get(id)!.name) };
+    if (e instanceof OutOfStockError) return { ok: false, outOfStock: e.variantIds.map((id) => itemTitle(variants.get(id)!)) };
     throw e;
   }
 

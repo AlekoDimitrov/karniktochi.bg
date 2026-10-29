@@ -1,4 +1,5 @@
 // Orders and live stock in Cloudflare D1. No Astro imports here, so tests can run it against a plain D1.
+// Stock and order items are keyed by variant id (see migrations/0002_products.sql).
 //
 // Stock rule: an order holds its items while its status is in HOLDING_STATUSES. Moving it to
 // cancelled/refused puts the items back; moving it out of those again takes them again.
@@ -23,10 +24,21 @@ export type NewOrder = {
   deliveryDetails: string;
   customerNote: string;
   paymentMethod: PaymentMethod;
-  items: { productId: string; name: string; unitPriceCents: number; quantity: number }[];
+  items: OrderItem[];
 };
 
-export type OrderItem = { productId: string; name: string; unitPriceCents: number; quantity: number };
+/** `name` and `optionLabel` are snapshots taken when the order was placed (e.g. "Дължина: 210 мм", or ''). */
+export type OrderItem = {
+  variantId: string;
+  productId: string;
+  name: string;
+  optionLabel: string;
+  unitPriceCents: number;
+  quantity: number;
+};
+
+/** How an item is named in emails, the admin and the thank-you page. */
+export const itemTitle = (i: Pick<OrderItem, 'name' | 'optionLabel'>) => (i.optionLabel ? `${i.name} (${i.optionLabel})` : i.name);
 
 export type Order = Omit<NewOrder, 'items'> & {
   id: number;
@@ -40,10 +52,10 @@ export type Order = Omit<NewOrder, 'items'> & {
   items: OrderItem[];
 };
 
-/** Thrown when there isn't enough stock. `productIds` lists the items that are short. */
+/** Thrown when there isn't enough stock. `variantIds` lists the items that are short. */
 export class OutOfStockError extends Error {
-  constructor(public productIds: string[]) {
-    super(`Not enough stock for: ${productIds.join(', ')}`);
+  constructor(public variantIds: string[]) {
+    super(`Not enough stock for: ${variantIds.join(', ')}`);
   }
 }
 
@@ -62,7 +74,8 @@ function randomId() {
 
 /**
  * Inserts the order and reserves its stock in one transaction.
- * `initialStock` gives the product-file stock for products that have no stock row yet.
+ * `initialStock` gives the starting stock for variants that have no stock row yet (variants created
+ * through the catalog always have one).
  */
 export async function insertOrder(
   db: D1Database,
@@ -76,9 +89,9 @@ export async function insertOrder(
   for (const item of order.items) {
     stmts.push(
       db
-        .prepare('INSERT INTO stock (product_id, quantity) VALUES (?, ?) ON CONFLICT (product_id) DO NOTHING')
-        .bind(item.productId, initialStock[item.productId] ?? 0),
-      db.prepare('UPDATE stock SET quantity = quantity - ? WHERE product_id = ?').bind(item.quantity, item.productId),
+        .prepare('INSERT INTO stock (variant_id, quantity) VALUES (?, ?) ON CONFLICT (variant_id) DO NOTHING')
+        .bind(item.variantId, initialStock[item.variantId] ?? 0),
+      db.prepare('UPDATE stock SET quantity = quantity - ? WHERE variant_id = ?').bind(item.quantity, item.variantId),
     );
   }
   const insertOrderStmt = db
@@ -104,10 +117,10 @@ export async function insertOrder(
     stmts.push(
       db
         .prepare(
-          `INSERT INTO order_items (order_id, product_id, name, unit_price_cents, quantity)
-           VALUES ((SELECT id FROM orders WHERE public_id = ?), ?, ?, ?, ?)`,
+          `INSERT INTO order_items (order_id, variant_id, product_id, name, option_label, unit_price_cents, quantity)
+           VALUES ((SELECT id FROM orders WHERE public_id = ?), ?, ?, ?, ?, ?, ?)`,
         )
-        .bind(publicId, item.productId, item.name, item.unitPriceCents, item.quantity),
+        .bind(publicId, item.variantId, item.productId, item.name, item.optionLabel, item.unitPriceCents, item.quantity),
     );
   }
 
@@ -122,9 +135,9 @@ export async function insertOrder(
   return { id, publicId, reference: orderReference(id), totalCents };
 }
 
-async function shortItems(db: D1Database, items: { productId: string; quantity: number }[], initialStock: Record<string, number>) {
+async function shortItems(db: D1Database, items: { variantId: string; quantity: number }[], initialStock: Record<string, number>) {
   const levels = await getStockLevels(db, initialStock);
-  return items.filter((i) => (levels[i.productId] ?? 0) < i.quantity).map((i) => i.productId);
+  return items.filter((i) => (levels[i.variantId] ?? 0) < i.quantity).map((i) => i.variantId);
 }
 
 /**
@@ -134,9 +147,9 @@ async function shortItems(db: D1Database, items: { productId: string; quantity: 
 export async function changeStatus(db: D1Database, id: number, expected: OrderStatus, next: OrderStatus) {
   if (expected === next) return;
   const items = await db
-    .prepare('SELECT product_id, quantity FROM order_items WHERE order_id = ?')
+    .prepare('SELECT variant_id, quantity FROM order_items WHERE order_id = ?')
     .bind(id)
-    .all<{ product_id: string; quantity: number }>();
+    .all<{ variant_id: string; quantity: number }>();
 
   // If the status is no longer `expected`, this writes an invalid status, which fails the valid_status
   // CHECK and rolls back the whole batch, including the stock changes after it.
@@ -153,7 +166,7 @@ export async function changeStatus(db: D1Database, id: number, expected: OrderSt
   if (delta !== 0) {
     for (const item of items.results) {
       stmts.push(
-        db.prepare('UPDATE stock SET quantity = quantity + ? WHERE product_id = ?').bind(delta * item.quantity, item.product_id),
+        db.prepare('UPDATE stock SET quantity = quantity + ? WHERE variant_id = ?').bind(delta * item.quantity, item.variant_id),
       );
     }
   }
@@ -165,7 +178,7 @@ export async function changeStatus(db: D1Database, id: number, expected: OrderSt
     if (isConstraint(e, 'valid_status')) throw new StatusConflictError(`Order ${id} is no longer "${expected}"`);
     if (isConstraint(e, 'stock_nonnegative')) {
       throw new OutOfStockError(
-        await shortItems(db, items.results.map((i) => ({ productId: i.product_id, quantity: i.quantity })), {}),
+        await shortItems(db, items.results.map((i) => ({ variantId: i.variant_id, quantity: i.quantity })), {}),
       );
     }
     throw e;
@@ -198,7 +211,15 @@ type OrderRow = {
   updated_at: string;
 };
 
-type ItemRow = { order_id: number; product_id: string; name: string; unit_price_cents: number; quantity: number };
+type ItemRow = {
+  order_id: number;
+  variant_id: string;
+  product_id: string | null;
+  name: string;
+  option_label: string;
+  unit_price_cents: number;
+  quantity: number;
+};
 
 const toOrder = (r: OrderRow, items: ItemRow[]): Order => ({
   id: r.id,
@@ -219,7 +240,14 @@ const toOrder = (r: OrderRow, items: ItemRow[]): Order => ({
   updatedAt: r.updated_at,
   items: items
     .filter((i) => i.order_id === r.id)
-    .map((i) => ({ productId: i.product_id, name: i.name, unitPriceCents: i.unit_price_cents, quantity: i.quantity })),
+    .map((i) => ({
+      variantId: i.variant_id,
+      productId: i.product_id ?? i.variant_id,
+      name: i.name,
+      optionLabel: i.option_label,
+      unitPriceCents: i.unit_price_cents,
+      quantity: i.quantity,
+    })),
 });
 
 /** Newest first. Pass a status to filter. */
@@ -249,17 +277,17 @@ async function getOrderWhere(db: D1Database, column: 'id' | 'public_id', value: 
 export const getOrder = (db: D1Database, id: number) => getOrderWhere(db, 'id', id);
 export const getOrderByPublicId = (db: D1Database, publicId: string) => getOrderWhere(db, 'public_id', publicId);
 
-/** Live stock per product: the stock row if there is one, else the product-file stock in `initialStock`. */
+/** Live stock per variant: the stock row if there is one, else the starting stock in `initialStock`. */
 export async function getStockLevels(db: D1Database, initialStock: Record<string, number>) {
-  const rows = await db.prepare('SELECT product_id, quantity FROM stock').all<{ product_id: string; quantity: number }>();
+  const rows = await db.prepare('SELECT variant_id, quantity FROM stock').all<{ variant_id: string; quantity: number }>();
   const levels = { ...initialStock };
-  for (const r of rows.results) levels[r.product_id] = r.quantity;
+  for (const r of rows.results) levels[r.variant_id] = r.quantity;
   return levels;
 }
 
-export async function setStock(db: D1Database, productId: string, quantity: number) {
+export async function setStock(db: D1Database, variantId: string, quantity: number) {
   await db
-    .prepare('INSERT INTO stock (product_id, quantity) VALUES (?, ?) ON CONFLICT (product_id) DO UPDATE SET quantity = excluded.quantity')
-    .bind(productId, quantity)
+    .prepare('INSERT INTO stock (variant_id, quantity) VALUES (?, ?) ON CONFLICT (variant_id) DO UPDATE SET quantity = excluded.quantity')
+    .bind(variantId, quantity)
     .run();
 }

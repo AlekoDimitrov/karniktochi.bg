@@ -1,22 +1,28 @@
 ---
-import { Image } from 'astro:assets';
 import Layout from '../../layouts/Layout.astro';
 import ProductCard from '../../components/ProductCard.astro';
 import { bg } from '../../i18n/bg';
 import { formatPrice } from '../../lib/format';
+import { hasChoices } from '../../lib/catalog';
 import { getProducts } from '../../lib/products';
 
-export async function getStaticPaths() {
-  const products = await getProducts();
-  return products.map((product) => ({ params: { slug: product.id }, props: { product } }));
-}
+export const prerender = false;
 
-const { product } = Astro.props;
-const d = product.data;
+// One D1 read gives the product, its other models and the related products.
 const all = await getProducts();
+const product = all.find((p) => p.id === Astro.params.slug);
+if (!product) return new Response('Not found', { status: 404 });
+const d = product;
+
+// The variant from ?v=…, else the first one in stock, else the first.
+const key = Astro.url.searchParams.get('v');
+const selected = d.variants.find((v) => v.optionKey === key) ?? d.variants.find((v) => v.stock > 0) ?? d.variants[0];
+const choices = hasChoices(d);
+
+const otherModels = d.series ? all.filter((p) => p.id !== d.id && p.series === d.series) : [];
 const related = all
-  .filter((p) => p.id !== product.id)
-  .sort((a, b) => Number(b.data.category === d.category) - Number(a.data.category === d.category))
+  .filter((p) => p.id !== d.id && !otherModels.includes(p))
+  .sort((a, b) => Number(b.category === d.category) - Number(a.category === d.category))
   .slice(0, 4);
 
 const specs = [
@@ -27,8 +33,8 @@ const specs = [
   [bg.product.specs.weight, d.weightG ? `${d.weightG} г` : undefined],
 ].filter(([, v]) => v) as [string, string][];
 
-const [main, ...rest] = d.images;
-const inStock = d.stock > 0;
+const inStock = selected.stock > 0;
+const variantData = d.variants.map((v) => ({ id: v.id, key: v.optionKey, price: formatPrice(v.priceCents), stock: v.stock }));
 ---
 <Layout title={`${d.name} — ${bg.siteName}`} description={d.summary} active="shop">
   <div class="container">
@@ -36,23 +42,11 @@ const inStock = d.stock > 0;
     <div class="pdp">
       <div class="pdp__gallery">
         <div class="photo">
-          {d.placeholder && <span class="ribbon">{bg.product.demo}</span>}
-          {
-            main ? (
-              <Image src={main} alt={d.name} widths={[480, 720, 960]} sizes="(min-width: 900px) 520px, 100vw" loading="eager" />
-            ) : (
-              <span>{bg.product.mainPhoto}</span>
-            )
-          }
+          {d.isDemo && <span class="ribbon">{bg.product.demo}</span>}
+          <span>{bg.product.mainPhoto}</span>
         </div>
         <div class="thumbs">
-          {
-            rest.length
-              ? rest.slice(0, 3).map((img) => (
-                  <div class="photo"><Image src={img} alt={d.name} widths={[160, 320]} sizes="160px" /></div>
-                ))
-              : bg.product.thumbs.map((t) => <div class="photo">{t}</div>)
-          }
+          {bg.product.thumbs.map((t) => <div class="photo">{t}</div>)}
         </div>
       </div>
 
@@ -60,7 +54,7 @@ const inStock = d.stock > 0;
         <span class="pdp__brand">{d.brand.toUpperCase()}</span>
         <h1>{d.name}</h1>
         <div class="pdp__price">
-          <strong>{formatPrice(d.priceCents)}</strong>
+          <strong data-price>{formatPrice(selected.priceCents)}</strong>
           <span>
             {bg.product.vatIncluded} ·
             <span data-stock-status data-in={bg.product.inStock} data-out={bg.product.outOfStock}>
@@ -69,12 +63,32 @@ const inStock = d.stock > 0;
           </span>
         </div>
         <p class="pdp__summary">{d.summary}</p>
+        {
+          choices && (
+            <div class="variant-picker">
+              <span class="variant-picker__label" id="variant-label">{d.optionLabel}</span>
+              <div class="variant-picker__options" role="group" aria-labelledby="variant-label">
+                {d.variants.map((v) => (
+                  <button
+                    type="button"
+                    class="variant-btn"
+                    data-variant={v.id}
+                    aria-pressed={v.id === selected.id ? 'true' : 'false'}
+                    disabled={v.stock <= 0}
+                  >
+                    {v.optionValue}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        }
         <div class="pdp__buy">
           <button
             type="button"
             class="btn btn--add"
-            data-add-to-cart={product.id}
-            data-stock={d.stock}
+            data-add-to-cart={selected.id}
+            data-stock={selected.stock}
             data-label-add={bg.product.add}
             data-label-out={bg.product.outOfStock}
             disabled={!inStock}
@@ -86,6 +100,7 @@ const inStock = d.stock > 0;
           </p>
           <small>{bg.product.payNote}</small>
         </div>
+        {d.description && <div class="pdp__description">{d.description}</div>}
         {
           specs.length > 0 && (
             <dl class="specs">
@@ -105,12 +120,23 @@ const inStock = d.stock > 0;
     </div>
   </div>
 
+  {
+    otherModels.length > 0 && (
+      <section class="related section" style="padding: 72px 0 0">
+        <div class="container">
+          <h2 style="margin-bottom: 32px">{bg.product.otherModels}</h2>
+          <div class="grid">{otherModels.map((p) => <ProductCard product={p} />)}</div>
+        </div>
+      </section>
+    )
+  }
   <section class="related section" style="padding: 72px 0 88px">
     <div class="container">
       <h2 style="margin-bottom: 32px">{bg.product.related}</h2>
       <div class="grid">{related.map((p) => <ProductCard product={p} />)}</div>
     </div>
   </section>
+  <script type="application/json" id="variants" set:html={JSON.stringify(variantData)} />
 </Layout>
 
 <script>
@@ -119,24 +145,55 @@ const inStock = d.stock > 0;
   const btn = document.querySelector<HTMLButtonElement>('[data-add-to-cart]');
   const status = document.querySelector<HTMLElement>('[data-stock-status]');
   const added = document.querySelector<HTMLElement>('[data-added]');
+  const price = document.querySelector<HTMLElement>('[data-price]');
+  const choices = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-variant]'));
+  const variants: { id: string; key: string; price: string; stock: number }[] = JSON.parse(
+    document.getElementById('variants')!.textContent!,
+  );
 
   if (btn) {
-    const id = btn.dataset.addToCart!;
-    // data-stock caps how many can go in the cart; it starts as build-time stock and is replaced by live stock.
-    // At the cap a click does nothing.
-    btn.addEventListener('click', () => {
-      const before = readCart().find((l) => l.id === id)?.qty ?? 0;
-      const after = addToCart(id, 1, Number(btn.dataset.stock));
-      if (added && after !== before) added.hidden = false;
-    });
+    let current = variants.find((v) => v.id === btn.dataset.addToCart) ?? variants[0];
 
-    liveStock().then((stock) => {
-      const n = stock?.[id];
-      if (n === undefined) return;
+    // Shows a variant's price and stock and points the button at it. data-stock caps how many can go in
+    // the cart; it starts as the rendered stock and is replaced by live stock. At the cap a click does nothing.
+    const show = (v: (typeof variants)[number]) => {
+      current = v;
+      const n = v.stock;
+      if (price) price.textContent = v.price;
+      btn.dataset.addToCart = v.id;
       btn.dataset.stock = String(n);
       btn.disabled = n <= 0;
       btn.textContent = (n > 0 ? btn.dataset.labelAdd : btn.dataset.labelOut) ?? '';
       if (status) status.textContent = (n > 0 ? status.dataset.in : status.dataset.out) ?? '';
+      for (const c of choices) {
+        c.setAttribute('aria-pressed', String(c.dataset.variant === v.id));
+        c.disabled = (variants.find((x) => x.id === c.dataset.variant)?.stock ?? 0) <= 0;
+      }
+    };
+
+    for (const c of choices) {
+      c.addEventListener('click', () => {
+        const v = variants.find((x) => x.id === c.dataset.variant);
+        if (!v || v === current) return;
+        show(v);
+        if (added) added.hidden = true;
+        // Keep the choice in the URL so it can be shared and survives a reload.
+        const url = new URL(location.href);
+        url.searchParams.set('v', v.key);
+        history.replaceState(null, '', url);
+      });
+    }
+
+    btn.addEventListener('click', () => {
+      const before = readCart().find((l) => l.id === current.id)?.qty ?? 0;
+      const after = addToCart(current.id, 1, current.stock);
+      if (added && after !== before) added.hidden = false;
+    });
+
+    liveStock().then((stock) => {
+      if (!stock) return;
+      for (const v of variants) if (stock[v.id] !== undefined) v.stock = stock[v.id];
+      show(current);
     });
   }
 </script>

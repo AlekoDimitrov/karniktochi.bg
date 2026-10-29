@@ -5,12 +5,11 @@ import CategoryChips from '../../components/CategoryChips.astro';
 import { bg, categoryIds, type CategoryId } from '../../i18n/bg';
 import { getProducts } from '../../lib/products';
 
-export function getStaticPaths() {
-  return categoryIds.map((category) => ({ params: { category } }));
-}
+export const prerender = false;
 
 const category = Astro.params.category as CategoryId;
-const products = (await getProducts()).filter((p) => p.data.category === category);
+if (!categoryIds.includes(category)) return new Response('Not found', { status: 404 });
+const products = (await getProducts()).filter((p) => p.category === category);
 const name = bg.categories[category];
 ---
 <Layout title={`${name} — ${bg.siteName}`} active="shop">

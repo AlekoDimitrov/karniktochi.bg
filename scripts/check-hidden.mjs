@@ -19,24 +19,13 @@ function expectHidden(file, html, attrs) {
   }
 }
 
-// Prerendered pages.
-const cart = join(client, 'kolichka/index.html');
-expectHidden(cart, readFileSync(cart, 'utf8'), [
-  'data-cart-empty',
-  'data-cart-summary',
-  'data-cart-fixed',
-  'data-cart-blocked',
-  'data-warn',
-]);
-const productDir = join(client, 'produkti');
-for (const slug of readdirSync(productDir, { withFileTypes: true }).filter((d) => d.isDirectory())) {
-  const file = join(productDir, slug.name, 'index.html');
-  expectHidden(file, readFileSync(file, 'utf8'), ['data-added']);
-}
-
-// The checkout page is rendered per request, so check its template.
-const checkout = 'src/pages/porachka/index.astro';
-expectHidden(checkout, readFileSync(checkout, 'utf8'), ['data-empty', 'data-checkout', 'data-form-error']);
+// These pages are rendered per request, so check their templates.
+const pages = [
+  ['src/pages/kolichka/index.astro', ['data-cart-empty', 'data-cart-summary', 'data-cart-fixed', 'data-cart-blocked', 'data-warn', 'data-option']],
+  ['src/pages/produkti/[slug].astro', ['data-added']],
+  ['src/pages/porachka/index.astro', ['data-empty', 'data-checkout', 'data-form-error']],
+];
+for (const [file, attrs] of pages) expectHidden(file, readFileSync(file, 'utf8'), attrs);
 
 const assets = join(client, '_astro');
 const css = readdirSync(assets).filter((f) => f.endsWith('.css')).map((f) => readFileSync(join(assets, f), 'utf8')).join('');

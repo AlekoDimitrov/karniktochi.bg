@@ -1,10 +1,14 @@
 import { defineMiddleware } from 'astro:middleware';
 import { env } from 'cloudflare:workers';
 import { verifyAccess } from './lib/access';
+import { cachedPage, isCacheablePath } from './lib/page-cache';
 
 export const onRequest = defineMiddleware(async (context, next) => {
   const { pathname } = context.url;
-  if (pathname !== '/admin' && !pathname.startsWith('/admin/')) return next();
+  if (pathname !== '/admin' && !pathname.startsWith('/admin/')) {
+    if (!isCacheablePath(pathname)) return next();
+    return cachedPage(context.request, context.url, (p) => context.locals.cfContext.waitUntil(p), () => next());
+  }
 
   // Local dev has no Cloudflare Access in front of it.
   if (!import.meta.env.DEV) {

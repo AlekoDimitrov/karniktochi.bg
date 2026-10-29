@@ -3,6 +3,8 @@ import Layout from '../../layouts/Layout.astro';
 import { bg } from '../../i18n/bg';
 import { getCatalog } from '../../lib/products';
 
+export const prerender = false;
+
 const catalog = await getCatalog();
 const t = bg.cart;
 ---
@@ -33,6 +35,7 @@ const t = bg.cart;
       <div class="cart-line__info">
         <span class="card__brand" data-brand></span>
         <a class="cart-line__name" data-name></a>
+        <small class="cart-line__option" data-option hidden></small>
         <span class="cart-line__price" data-price></span>
         <small class="cart-line__warn" data-warn hidden></small>
       </div>
@@ -68,7 +71,7 @@ const t = bg.cart;
   const fixedEl = $('[data-cart-fixed]');
   const checkoutLink = $<HTMLAnchorElement>('[data-checkout-link]');
 
-  // Available count per product: build-time stock until live stock arrives.
+  // Available count per variant: the rendered stock until live stock arrives.
   const stock = (): Record<string, number> =>
     Object.fromEntries(Object.values(catalog).map((p) => [p.id, p.stock]));
 
@@ -104,7 +107,10 @@ const t = bg.cart;
       q('[data-brand]').textContent = p.brand.toUpperCase();
       const name = q<HTMLAnchorElement>('[data-name]');
       name.textContent = p.name;
-      name.href = `/produkti/${p.id}/`;
+      name.href = p.url;
+      const option = q<HTMLElement>('[data-option]');
+      option.textContent = p.option;
+      option.hidden = !p.option;
       q('[data-price]').textContent = formatPrice(p.priceCents * line.qty);
       qty.value = String(line.qty);
       if (p.stock > 0) qty.max = String(p.stock);
@@ -137,7 +143,7 @@ const t = bg.cart;
 
   $('[data-cart-fix]').addEventListener('click', () => {
     const { lines, fixed } = fixCart(readCart(), stock());
-    const nameOf = (id: string) => catalog[id]?.name ?? id;
+    const nameOf = (id: string) => (catalog[id] ? [catalog[id].name, catalog[id].option].filter(Boolean).join(', ') : id);
     const items = fixed.map((f) => {
       const li = document.createElement('li');
       li.textContent =
@@ -160,7 +166,7 @@ const t = bg.cart;
   });
 
   onCartChange(render);
-  // The catalog above has build-time stock; replace it with live stock and redraw.
+  // The catalog above may come from the page cache; replace its stock with live stock and redraw.
   liveStock().then((live) => {
     if (!live) return;
     for (const [id, n] of Object.entries(live)) if (catalog[id]) catalog[id].stock = n;

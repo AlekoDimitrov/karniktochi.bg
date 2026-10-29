@@ -5,7 +5,7 @@ import { bg } from '../../../i18n/bg';
 import { bankTransfer } from '../../../lib/config';
 import { formatPrice } from '../../../lib/format';
 import { formatBgPhone } from '../../../lib/checkout-input';
-import { getOrderByPublicId } from '../../../lib/orders';
+import { getOrderByPublicId, itemTitle } from '../../../lib/orders';
 
 export const prerender = false;
 
@@ -34,7 +34,7 @@ Astro.response.headers.set('Referrer-Policy', 'no-referrer');
             <ul class="summary">
               {order.items.map((i) => (
                 <li>
-                  <span>{i.quantity} × {i.name}</span>
+                  <span>{i.quantity} × {itemTitle(i)}</span>
                   <span>{formatPrice(i.unitPriceCents * i.quantity)}</span>
                 </li>
               ))}

@@ -1,44 +1,38 @@
 ---
-import { Image } from 'astro:assets';
 import { bg } from '../i18n/bg';
 import { formatPrice } from '../lib/format';
+import { priceRange, totalStock } from '../lib/catalog';
 import type { Product } from '../lib/products';
 
 interface Props { product: Product }
-const { product } = Astro.props;
-const d = product.data;
-const img = d.images[0];
+const { product: p } = Astro.props;
+const { min, max } = priceRange(p);
+const price = min === max ? formatPrice(min) : bg.product.from.replace('{price}', formatPrice(min));
 ---
-<a class="card" href={`/produkti/${product.id}/`} data-product-id={product.id}>
+<a class="card" href={`/produkti/${p.id}/`} data-variant-ids={p.variants.map((v) => v.id).join(' ')}>
   <div class="card__photo">
-    {d.placeholder && <span class="ribbon">{bg.product.demo}</span>}
-    {
-      img ? (
-        <Image src={img} alt={d.name} widths={[320, 480, 640]} sizes="(min-width: 1000px) 266px, 50vw" />
-      ) : (
-        <span>{bg.product.photo}, 4:5</span>
-      )
-    }
+    {p.isDemo && <span class="ribbon">{bg.product.demo}</span>}
+    <span>{bg.product.photo}, 4:5</span>
   </div>
   <div class="card__meta">
-    <span class="card__brand">{d.brand.toUpperCase()}</span>
-    <span class="card__name">{d.name}</span>
+    <span class="card__brand">{p.brand.toUpperCase()}</span>
+    <span class="card__name">{p.name}</span>
     <span class="card__price">
-      {formatPrice(d.priceCents)}
-      <span class="sold-out" data-sold-out hidden={d.stock > 0}> · {bg.product.outOfStock}</span>
+      {price}
+      <span class="sold-out" data-sold-out hidden={totalStock(p) > 0}> · {bg.product.outOfStock}</span>
     </span>
   </div>
 </a>
 
 <script>
   import { liveStock } from '../scripts/live-stock';
-  // Show or hide "Изчерпан" on every card according to live stock.
+  // Show or hide "Изчерпан" on every card according to live stock: sold out when every variant is.
   liveStock().then((stock) => {
     if (!stock) return;
-    document.querySelectorAll<HTMLElement>('[data-product-id]').forEach((card) => {
-      const n = stock[card.dataset.productId!];
+    document.querySelectorAll<HTMLElement>('[data-variant-ids]').forEach((card) => {
+      const counts = card.dataset.variantIds!.split(' ').map((id) => stock[id]);
       const label = card.querySelector<HTMLElement>('[data-sold-out]');
-      if (n !== undefined && label) label.hidden = n > 0;
+      if (label && counts.every((n) => n !== undefined)) label.hidden = counts.some((n) => n > 0);
     });
   });
 </script>

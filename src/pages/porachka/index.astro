@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import { bg } from '../../i18n/bg';
 import { bankTransfer } from '../../lib/config';
-import { getProducts } from '../../lib/products';
+import { getCatalog } from '../../lib/products';
 
 // Rendered per request so the ENABLE_BANK_TRANSFER switch takes effect without a rebuild.
 export const prerender = false;
@@ -10,7 +10,7 @@ export const prerender = false;
 const t = bg.checkout;
 const bankEnabled = bankTransfer() !== null;
 const catalog = Object.fromEntries(
-  (await getProducts()).map((p) => [p.id, { name: p.data.name, priceCents: p.data.priceCents, stock: p.data.stock }]),
+  Object.values(await getCatalog()).map((v) => [v.id, { name: v.name, option: v.option, priceCents: v.priceCents, stock: v.stock }]),
 );
 ---
 <Layout title={`${t.title} — ${bg.siteName}`} active="cart">
@@ -104,7 +104,7 @@ const catalog = Object.fromEntries(
   import { formatPrice } from '../../lib/format';
 
   const { catalog, t } = JSON.parse(document.getElementById('checkout-data')!.textContent!) as {
-    catalog: Record<string, { name: string; priceCents: number; stock: number }>;
+    catalog: Record<string, { name: string; option: string; priceCents: number; stock: number }>;
     t: Record<string, string> & { errors: Record<string, string> };
   };
   const form = document.querySelector<HTMLFormElement>('[data-checkout]')!;
@@ -137,7 +137,7 @@ const catalog = Object.fromEntries(
       const p = catalog[l.id];
       const li = document.createElement('li');
       const name = document.createElement('span');
-      name.textContent = `${l.qty} × ${p.name}`;
+      name.textContent = `${l.qty} × ${p.name}${p.option ? ` (${p.option})` : ''}`;
       const price = document.createElement('span');
       price.textContent = formatPrice(p.priceCents * l.qty);
       li.appendChild(name);

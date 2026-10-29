@@ -6,6 +6,8 @@ import { bg, categoryIds } from '../i18n/bg';
 import { getProducts } from '../lib/products';
 import '../styles/caveat.css';
 
+export const prerender = false;
+
 const latest = (await getProducts()).slice(0, 4);
 // Until the photo's year is known, the postmark shows dots instead of a made-up number
 const { workshopPostmarkPlace, workshopPostmarkYear } = bg.home;

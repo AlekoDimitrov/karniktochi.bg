@@ -6,6 +6,7 @@ import { formatBgPhone } from '../../lib/checkout-input';
 import {
   changeStatus,
   getOrder,
+  itemTitle,
   listOrders,
   ORDER_STATUSES,
   OutOfStockError,
@@ -95,7 +96,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('bg-BG', { timeZone: 
             {o.customerNote && <div class="order__note">Бележка от клиента: {o.customerNote}</div>}
           </div>
           <ul class="order__items">
-            {o.items.map((i) => <li>{i.quantity} × {i.name} — {formatPrice(i.unitPriceCents * i.quantity)}</li>)}
+            {o.items.map((i) => <li>{i.quantity} × {itemTitle(i)} — {formatPrice(i.unitPriceCents * i.quantity)}</li>)}
           </ul>
         </div>
         <form method="post" class="order__form">
