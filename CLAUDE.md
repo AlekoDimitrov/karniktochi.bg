@@ -32,6 +32,8 @@ Do not deploy unless explicitly asked.
 ## Working rules
 
 - Commit after each working step: once a change builds and runs, commit it before starting the next one.
+- Read docs/DECISIONS.md at the start of every session.
+- Update docs/HANDOFF.md at the end of every task.
 
 ## Launch checklist
 
