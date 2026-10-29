@@ -1,13 +1,16 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-29, after adding this file and docs/DECISIONS.md.
+Rewritten at the end of every task. Last updated: 2026-10-29, after pushing both branches and deleting the
+slice-1-*.txt excerpt files.
 
 ## Branch
 
-`products-in-d1`. Not pushed. `main` is on GitHub at `fa78e84` and is the deployed version.
+`products-in-d1`, pushed and tracking `origin/products-in-d1`. `main` is on GitHub at `fa78e84` and is the
+deployed version.
 
 ## Last 10 commits (before this one)
 
+- `da6caa7` Add docs/HANDOFF.md and docs/DECISIONS.md; CLAUDE.md: read decisions, update handoff
 - `ba22d8d` Fix what the click-through found: cart caps, unavailable lines, load failures, admin stock, 404s, phone overflow
 - `6695f30` Pages: Cache-Control public, max-age=0, s-maxage=60, stale-while-revalidate=600
 - `56b326e` Merge main into products-in-d1: workshop paragraph and footer from main
@@ -17,7 +20,6 @@ Rewritten at the end of every task. Last updated: 2026-10-29, after adding this 
 - `805ce34` Add npm run seed:dev: local catalog of 2 knives in three sizes and 20 single products
 - `cfb120d` Slice 1: no page loads the whole catalog; Workers Cache replaces the page cache
 - `bfc08b4` Slice 1 report: CPU per page under wrangler dev, Cache API on workers.dev, migration results
-- `376e4c4` Slice 1: test the products migration on a database with orders, test the page cache
 
 ## Finished
 
@@ -73,7 +75,8 @@ Rewritten at the end of every task. Last updated: 2026-10-29, after adding this 
 - When to apply migration 0002 to the remote database (after merge, before the first deploy of this branch).
 - The reasons marked "not recorded" in docs/DECISIONS.md.
 - Uncommitted edits in src/i18n/bg.ts (the payNote text and a line-wrap) are yours; commit or drop them.
-- Three untracked slice-1-*.txt files in the project root: keep or delete.
+- An untracked `backup-before-0002.sql` is in the project root (not created by Claude). If it is a database
+  dump, keep it out of git (it isn't in .gitignore) and store it outside the repo.
 
 ## Known bugs and limits
 
