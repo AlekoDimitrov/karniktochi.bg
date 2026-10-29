@@ -159,11 +159,62 @@ h1, h2, h3, p { margin: 0; }
 /* Workshop band */
 .band-purple { background: var(--purple); color: var(--cream); }
 .band__inner { display: flex; flex-wrap: wrap; align-items: center; gap: 56px; }
-.band__photo {
-  flex: 1 1 400px; min-width: 0; aspect-ratio: 1 / 1; background: #5f3f8a; border: 1px solid rgba(246, 245, 239, 0.3);
-  border-radius: var(--radius); overflow: hidden;
+.band__photo { flex: 1 1 400px; min-width: 0; }
+
+/* Workshop photo as an old print: paper frame, stamp and postmark are decoration only */
+.print {
+  --tilt: -1.8deg;
+  position: relative; margin: 0; padding: 12px 12px 52px; border-radius: 2px;
+  background: #f4ecd8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.06'/%3E%3C/svg%3E");
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25), 0 14px 30px rgba(0, 0, 0, 0.35);
+  transform: rotate(var(--tilt)); transition: transform 200ms ease;
 }
-.band__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.print:hover { transform: translateY(-3px) rotate(calc(var(--tilt) * 0.5)); }
+.print__photo { position: relative; }
+.print__photo img {
+  display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; object-fit: cover;
+  filter: sepia(0.35) contrast(1.05) brightness(0.97);
+}
+.print__photo::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 58%, rgba(30, 18, 10, 0.38) 100%);
+}
+.print__corners { position: absolute; inset: -3px; z-index: 1; pointer-events: none; }
+.print__corners span { position: absolute; width: 20px; height: 20px; background: #2a2220; }
+.print__corners span:nth-child(1) { top: 0; left: 0; clip-path: polygon(0 0, 100% 0, 0 100%); }
+.print__corners span:nth-child(2) { top: 0; right: 0; clip-path: polygon(0 0, 100% 0, 100% 100%); }
+.print__corners span:nth-child(3) { bottom: 0; left: 0; clip-path: polygon(0 0, 0 100%, 100% 100%); }
+.print__corners span:nth-child(4) { bottom: 0; right: 0; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.print__caption {
+  position: absolute; left: 12px; right: 12px; bottom: 0; height: 52px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Caveat', cursive; font-weight: 500; font-size: 22px; line-height: 1; color: #3b2f2a;
+}
+.stamp {
+  position: absolute; top: -24px; right: -20px; z-index: 2; width: 84px; height: 100px;
+  rotate: 6deg; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.3));
+}
+.stamp__paper {
+  height: 100%; padding: 5px; background: #f4ecd8;
+  mask: linear-gradient(#000 0 0) content-box, radial-gradient(circle, #0000 2.6px, #000 3px) -4px -4px / 8px 8px round;
+}
+.stamp__inner {
+  height: 100%; display: flex; flex-direction: column; align-items: center; padding: 6px 4px 4px;
+  background: #27403b; outline: 1px solid rgba(244, 236, 216, 0.8); outline-offset: -3px;
+}
+.stamp__inner img { flex: 1; min-height: 0; width: 100%; object-fit: contain; }
+.stamp__inner span {
+  font-family: var(--font-head); font-size: 11px; font-weight: 600; font-variant-caps: all-small-caps;
+  letter-spacing: 0.12em; line-height: 1.2; color: #f4ecd8;
+}
+.postmark {
+  position: absolute; top: 40px; right: -50px; z-index: 3; width: 180px; height: 92px;
+  rotate: -12deg; color: rgba(30, 20, 50, 0.55); pointer-events: none; overflow: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .print { transition: none; }
+  .print:hover { transform: rotate(var(--tilt)); }
+}
 .band__copy { flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
 .band__copy h2 { font-weight: 700; font-size: clamp(28px, 3.2vw, 40px); }
 .band__copy p { font-size: 18px; color: #ebe3f5; }
@@ -228,6 +279,10 @@ h1, h2, h3, p { margin: 0; }
   .hero__inner { padding: 48px var(--pad); gap: 32px; }
   .section { padding: 56px 0; }
   .band__inner { gap: 32px; }
+  .print { --tilt: -1deg; }
+  .stamp { top: -14px; right: -8px; width: 64px; height: 76px; }
+  .stamp__inner span { font-size: 9px; }
+  .postmark { top: 34px; right: -16px; width: 120px; height: 61px; }
   .pdp { gap: 32px; }
 }
 
