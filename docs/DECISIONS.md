@@ -42,3 +42,9 @@ Reason: not recorded.
 
 **2026-10-29: Prices are stored as integer euro cents and formatted only for display.**
 Reason: whole-number cents avoid rounding errors in totals (see CLAUDE.md: formatPrice()).
+
+**2026-10-29: Shipping is not charged by the shop. The customer pays the courier (Econt or Speedy) at their current rates on delivery; order totals exclude shipping.**
+Reason: no shipping logic or shipping column is needed, and the courier's price is the real price.
+
+**2026-10-29: The remote D1 database holds only dummy data. At launch it is reset (all tables dropped, all migrations applied fresh) instead of migrated.**
+Reason: no real orders exist, so a reset removes the risk of migrating live data and starts order numbers clean. Database backups are never kept inside the repo (backup*.sql is gitignored).

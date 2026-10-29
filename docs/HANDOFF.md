@@ -1,15 +1,16 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-29, after pushing both branches and deleting the
-slice-1-*.txt excerpt files.
+Rewritten at the end of every task. Last updated: 2026-10-29, after the shipping text, the database-reset
+decision and gitignoring backups.
 
 ## Branch
 
-`products-in-d1`, pushed and tracking `origin/products-in-d1`. `main` is on GitHub at `fa78e84` and is the
-deployed version.
+`products-in-d1` is on GitHub (`origin/products-in-d1`, up to `da6caa7`); the commits after it (`376f463` and
+this one) are local and not pushed yet. `main` is on GitHub at `fa78e84` and is the deployed version.
 
 ## Last 10 commits (before this one)
 
+- `376f463` HANDOFF: branch pushed, excerpt files deleted, flag the untracked database backup
 - `da6caa7` Add docs/HANDOFF.md and docs/DECISIONS.md; CLAUDE.md: read decisions, update handoff
 - `ba22d8d` Fix what the click-through found: cart caps, unavailable lines, load failures, admin stock, 404s, phone overflow
 - `6695f30` Pages: Cache-Control public, max-age=0, s-maxage=60, stale-while-revalidate=600
@@ -19,7 +20,6 @@ deployed version.
 - `0aed0fd` Fix the admin orders list past 100 orders; skip purging where Workers Cache has no purge()
 - `805ce34` Add npm run seed:dev: local catalog of 2 knives in three sizes and 20 single products
 - `cfb120d` Slice 1: no page loads the whole catalog; Workers Cache replaces the page cache
-- `bfc08b4` Slice 1 report: CPU per page under wrangler dev, Cache API on workers.dev, migration results
 
 ## Finished
 
@@ -59,7 +59,7 @@ deployed version.
 - Real phones (only the 390 px iframe).
 - The `/api/cart-lines` failure on first page load. Only a failure after the page had loaded was tested.
 
-## Test and build results (at `ba22d8d`)
+## Test and build results (at this commit)
 
 - `npm test`: 14 files, 133 tests, all passing.
 - `npx astro check`: 0 errors, 0 warnings, 0 hints.
@@ -72,11 +72,10 @@ deployed version.
   bulk operations).
 - The admin is decided to be in English, but the current admin pages are in Bulgarian. Translate them in slice 2?
 - Should the `listOrders` fix go to main now? main is live with the bug.
-- When to apply migration 0002 to the remote database (after merge, before the first deploy of this branch).
+- Remote database: decided, not to be migrated. At launch it is reset (all tables dropped, all migrations
+  applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
+  the first deploy of this branch.
 - The reasons marked "not recorded" in docs/DECISIONS.md.
-- Uncommitted edits in src/i18n/bg.ts (the payNote text and a line-wrap) are yours; commit or drop them.
-- An untracked `backup-before-0002.sql` is in the project root (not created by Claude). If it is a database
-  dump, keep it out of git (it isn't in .gitignore) and store it outside the repo.
 
 ## Known bugs and limits
 
@@ -95,3 +94,4 @@ deployed version.
 - Migration: `migrations/0002_products.sql`
 - Environment variables: none new. Decided but not yet added: `MEDIA_BASE_URL`, an R2 binding.
 - Endpoint: `GET /api/cart-lines`
+- .gitignore: `backup*.sql`

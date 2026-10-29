@@ -28,3 +28,6 @@ pnpm-debug.log*
 
 # local Worker secrets
 .dev.vars
+
+# database backups are never kept in the repo (migrations/*.sql stay tracked)
+backup*.sql
