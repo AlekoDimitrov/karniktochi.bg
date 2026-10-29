@@ -1,8 +1,10 @@
 // A short edge cache for public pages, using the Workers Cache API (caches.default).
 // Cloudflare doesn't cache Worker responses because of their Cache-Control headers, so pages are put in
-// the cache explicitly. The Cache API only works on a custom domain: on *.workers.dev (and in the
-// dashboard preview) its calls do nothing, so there this skips it and renders every request.
+// the cache explicitly. Cloudflare documents the Cache API as working on custom domains and doing nothing
+// in the dashboard editor and Playground previews; for *.workers.dev it is undocumented and reported not to
+// work, so there this skips it and renders every request.
 // The cache is per data center; stock on cached pages is corrected in the browser from /api/stock.
+// The Worker still runs on a hit (Astro routes the request before this middleware), so a hit costs CPU too.
 
 /** Seconds a public page may be served from the cache. */
 export const PAGE_TTL = 30;

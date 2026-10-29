@@ -167,7 +167,8 @@ describe('orders that reference archived variants', () => {
     expect((await orderableVariants(db, [v210], live)).size).toBe(0);
   });
 
-  it('keeps orders placed before the migration readable under the old product id', async () => {
+  // Migrating a database that already has orders is covered in migration.test.ts.
+  it('takes orders for the demo variants, whose ids are the old product ids', async () => {
     await insertOrder(db, order([['demo-1', 2]]), {});
     const saved = await getOrder(db, 1);
     expect(saved?.items[0]).toMatchObject({ variantId: 'demo-1', quantity: 2 });
