@@ -1,0 +1,98 @@
+---
+import { env } from 'cloudflare:workers';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPagination from '../../../components/admin/AdminPagination.astro';
+import { ADMIN_PAGE_SIZE, listAdminProducts, SEARCH_MAX } from '../../../lib/admin-products';
+import { categoryLabel, productStatusLabel } from '../../../lib/admin-labels';
+import { CATEGORIES, parsePage, priceRange, PRODUCT_STATUSES, totalStock, type Category, type Product, type ProductStatus } from '../../../lib/catalog';
+import { formatPrice } from '../../../lib/format';
+import { visibility } from '../../../lib/products';
+
+export const prerender = false;
+
+const params = Astro.url.searchParams;
+const q = (params.get('q') ?? '').trim().slice(0, SEARCH_MAX);
+const categoryParam = params.get('category');
+const category = (CATEGORIES as readonly string[]).includes(categoryParam ?? '') ? (categoryParam as Category) : undefined;
+const statusParam = params.get('status');
+const status = (PRODUCT_STATUSES as readonly string[]).includes(statusParam ?? '') ? (statusParam as ProductStatus) : undefined;
+
+// The list's own URL for page n, keeping the search and filters. Page 1 has no ?page=.
+const pageHref = (n: number) => {
+  const out = new URLSearchParams();
+  if (q) out.set('q', q);
+  if (category) out.set('category', category);
+  if (status) out.set('status', status);
+  if (n > 1) out.set('page', String(n));
+  const query = out.toString();
+  return query ? `/admin/products/?${query}` : '/admin/products/';
+};
+// A malformed ?page= goes to page 1, a page past the end to the last page.
+const page = parsePage(params.get('page'));
+if (page === null) return Astro.redirect(pageHref(1), 303);
+const { products, total, pages } = await listAdminProducts(env.DB, { q, category, status, page });
+if (page > pages) return Astro.redirect(pageHref(pages), 303);
+const from = (page - 1) * ADMIN_PAGE_SIZE + 1;
+const to = from + products.length - 1;
+
+const price = (p: Product) => {
+  if (!p.variants.length) return '—';
+  const { min, max } = priceRange(p);
+  return min === max ? formatPrice(min) : `${formatPrice(min)} – ${formatPrice(max)}`;
+};
+// Linked on the site only when customers can see it there.
+const onSite = (p: Product) => p.status === 'published' && p.variants.length > 0 && (visibility.includeDemo || !p.isDemo);
+const filtered = Boolean(q || category || status);
+---
+<AdminLayout title="Products" active="products">
+  <h1 class="page-h1">Products</h1>
+
+  <form class="admin-filters" method="get" action="/admin/products/" role="search">
+    <label>
+      Search
+      <input type="search" name="q" value={q} maxlength={SEARCH_MAX} placeholder="Name, brand or SKU" />
+    </label>
+    <label>
+      Category
+      <select name="category">
+        <option value="">All categories</option>
+        {CATEGORIES.map((c) => <option value={c} selected={c === category}>{categoryLabel[c]}</option>)}
+      </select>
+    </label>
+    <label>
+      Status
+      <select name="status">
+        <option value="">All statuses</option>
+        {PRODUCT_STATUSES.map((s) => <option value={s} selected={s === status}>{productStatusLabel[s]}</option>)}
+      </select>
+    </label>
+    <button class="btn btn--accent" type="submit">Show</button>
+    {filtered && <a class="admin-filters__clear" href="/admin/products/">Clear</a>}
+  </form>
+
+  {total === 0 && <p style="margin-top: 24px">{filtered ? 'No products match.' : 'No products yet.'}</p>}
+  {total > 0 && <p class="muted" style="margin-top: 16px">Showing {from}–{to} of {total}</p>}
+
+  <ul class="product-rows">
+    {products.map((p) => (
+      <li class="product-row" id={`product-${p.id}`} data-status={p.status}>
+        <div class="product-row__head">
+          <strong class="product-row__name">{p.name}</strong>
+          {p.brand && <span class="muted">{p.brand}</span>}
+          {p.isDemo && <span class="badge badge--demo">DEMO</span>}
+          <span class="badge">{productStatusLabel[p.status]}</span>
+        </div>
+        <dl class="product-row__facts">
+          <div><dt>Category</dt><dd>{categoryLabel[p.category]}</dd></div>
+          <div><dt>Price</dt><dd>{price(p)}</dd></div>
+          <div><dt>Stock</dt><dd>{totalStock(p)}{p.variants.length > 1 && <span class="muted"> in {p.variants.length} sizes</span>}</dd></div>
+        </dl>
+        <div class="product-row__actions">
+          <a href={`/admin/products/${p.id}/`}>Edit<span class="visually-hidden"> {p.name}</span></a>
+          {onSite(p) && <a href={`/produkti/${p.id}/`}>View on site<span class="visually-hidden"> ({p.name})</span></a>}
+        </div>
+      </li>
+    ))}
+  </ul>
+  <AdminPagination page={page} pages={pages} href={pageHref} label="Product pages" />
+</AdminLayout>

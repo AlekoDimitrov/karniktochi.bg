@@ -2,7 +2,7 @@
 import '@fontsource-variable/golos-text/wght.css';
 import '../styles/global.css';
 
-interface Props { title: string; active: 'orders' | 'stock' }
+interface Props { title: string; active: 'orders' | 'products' | 'stock' }
 const { title, active } = Astro.props;
 ---
 <!doctype html>
@@ -19,6 +19,7 @@ const { title, active } = Astro.props;
       <strong>Karnik Tochi · Admin</strong>
       <nav>
         <a href="/admin/" aria-current={active === 'orders' ? 'page' : undefined}>Orders</a>
+        <a href="/admin/products/" aria-current={active === 'products' ? 'page' : undefined}>Products</a>
         <a href="/admin/stock/" aria-current={active === 'stock' ? 'page' : undefined}>Stock</a>
         <a href="/">View site</a>
       </nav>
