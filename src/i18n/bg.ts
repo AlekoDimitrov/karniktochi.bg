@@ -206,6 +206,8 @@ export const bg = {
     phone: "+359 89 404 2223",
     copyright: "© Карник Точи",
     stonesCare: "Камъни и поддръжка",
+    facebook: "Карник Точи във Facebook (отваря се в нов прозорец)",
+    instagram: "Карник Точи в Instagram (отваря се в нов прозорец)",
   },
 } as const;
 
