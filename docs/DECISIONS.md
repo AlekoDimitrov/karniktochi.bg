@@ -72,3 +72,6 @@ Replaces the 2026-10-29 entry "No deploy until the admin product manager works".
 - The demo flag is shown as a read-only badge in the admin, not editable.
 - Slice 2 speed measurements go in docs/slice-2-report.md.
 Reason: the user's answers to the plan's open decisions.
+
+**2026-10-30: Admin requests may exceed 10 ms CPU (measured up to ~16 ms locally). The admin is single-user and runs only on Workers Paid (default 30 s CPU limit). Therefore Workers Paid must be active before the admin runs on Cloudflare, including staging.**
+Reason: as stated. Measurements in docs/slice-2-report.md (the products list at 11–15 ms and the product save at 12.6–15.9 ms JS+GC, with 500 products, 1,000 sizes and 1,000 orders).

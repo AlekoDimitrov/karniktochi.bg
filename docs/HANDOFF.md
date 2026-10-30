@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-30, at the slice 2 stop after step 9 (speed
-measured; a decision is needed before step 10).
+Rewritten at the end of every task. Last updated: 2026-10-30, stopped before step 10: the checkout submit
+measured over 10 ms CPU.
 
 ## Branch
 
@@ -76,8 +76,12 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
     - orders pages are now 7–9 ms JS+GC: the dates no longer use Intl time zones;
     - edit and preview are 7–8 ms; quick edit 9–11 ms;
     - **over the ~10 ms target:** the products list at 11–15 ms, and the product save at 12.6–15.9 ms.
-  - Waiting for the user's decision on the overage (see the open questions), then step 10 (docs) and the
-    last stop. `npm run unseed:orders` runs before that stop.
+  - The admin overage was accepted by the user (DECISIONS, 2026-10-30): Workers Paid must be active
+    before the admin runs on Cloudflare, including staging.
+  - Storefront measured with the same data (docs/slice-2-report.md): every page is under 10 ms, but **the
+    checkout submit, POST /api/orders, takes about 15 ms** (9.8 ms in slice 1). Stopped there, as
+    instructed, without optimising.
+  - Not done yet: step 10 (docs), `npm run unseed:orders`, and the final stop.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -159,16 +163,14 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Open questions
 
-- **Decision for slice 2:** the products list (11–15 ms) and the product save (12.6–15.9 ms) are over the
-  ~10 ms target; the details are in docs/slice-2-report.md. Options:
-  1. Accept them. The site launches on the paid plan (DECISIONS, 2026-10-29), where the CPU limit is 30 s;
-     these are admin-only pages used by one person, and never cached.
-  2. Show 25 products per page instead of 50. That would be about 7–8 ms by the per-row cost measured,
-     but more paging.
-  3. Make quick edit one form per product, or load it on demand. That changes the plan and is more work,
-     and the floor is still about 11 ms at 50 rows.
-  - The save has no cheap fix found. Its work is the form checks, a SKU query, a batch of about 15
-    statements and the redirect.
+- **Checkout submit over 10 ms (open, 2026-10-30):** POST /api/orders takes 14.4–15.2 ms JS+GC with the
+  slice 2 perf data, with or without building the emails. Slice 1 measured 9.8 ms. The order code is
+  unchanged since slice 1, and the cause is not known yet. Waiting for the user: investigate, or accept it
+  under the Workers Paid requirement.
+
+- **Staging checklist** (things only Cloudflare can show):
+  - Workers Paid must be active before the admin runs on Cloudflare, including staging (DECISIONS,
+    2026-10-30).
 
 - Remote database: decided, not to be migrated. At launch it is reset (all tables dropped, all migrations
   applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
@@ -221,8 +223,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 ## New on this branch (names only)
 
 - Commands: `npm run seed:dev`, `npm run seed:orders`, `npm run unseed:orders` (local database only)
-- Scripts: `scripts/seed-perf.mjs` (SQL for a throwaway local performance database), `scripts/profile-admin.mjs`
-  (CPU profiles of the admin pages under wrangler dev)
+- Scripts: `scripts/seed-perf.mjs` (SQL for a throwaway local performance database), `scripts/profile.mjs`
+  (CPU profiles of the admin or storefront requests under wrangler dev)
 - Config key: `cache.enabled` in wrangler.jsonc
 - Migration: `migrations/0002_products.sql`
 - Environment variables: none new. Decided but not yet added: `MEDIA_BASE_URL`, an R2 binding.

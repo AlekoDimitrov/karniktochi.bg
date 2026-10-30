@@ -1,15 +1,17 @@
-// CPU per request for the admin pages, as in docs/slice-1-report.md section 1: V8 CPU profiles taken through
-// the Worker's inspector (100 µs sampling) while requests are sent one after another.
+// CPU per request, as in docs/slice-1-report.md section 1: V8 CPU profiles taken through the Worker's
+// inspector (100 µs sampling) while requests are sent one after another. Two sets: the admin pages and the
+// storefront (customer-facing pages and the order API).
 //
 // Needs the production build running under wrangler dev with the inspector on, against a LOCAL performance
 // database (scripts/seed-perf.mjs), e.g. in a scratch worktree:
 //   npx wrangler dev -c dist/server/wrangler.json --port 8788 --inspector-port 9230
-// Usage: node scripts/profile-admin.mjs [base URL] [inspector port] [runs]
+// Usage: node scripts/profile.mjs admin|storefront [base URL] [inspector port] [runs]
 // Prints per request: JS+GC, all busy (adds V8's "(program)"), median wall time and response size.
 
-const base = process.argv[2] ?? 'http://localhost:8788';
-const inspectorPort = process.argv[3] ?? '9230';
-const runs = Number(process.argv[4] ?? 50);
+const set = process.argv[2] ?? 'admin';
+const base = process.argv[3] ?? 'http://localhost:8788';
+const inspectorPort = process.argv[4] ?? '9230';
+const runs = Number(process.argv[5] ?? 50);
 
 const targets = await (await fetch(`http://127.0.0.1:${inspectorPort}/json`)).json();
 // Wrangler's inspector proxy refuses connections without an Origin header, which Node's built-in WebSocket
@@ -58,7 +60,7 @@ const ms = (us) => (us / 1000).toFixed(1);
  * Profiles `runs` requests. `request(i)` returns [url, init] for the i-th one; `between(i)` runs between
  * requests outside the profile (e.g. to read the form a save needs).
  */
-export async function measure(label, request, { between } = {}) {
+export async function measure(label, request, { between, after } = {}) {
   const totals = { idle: 0, program: 0, gc: 0, js: 0 };
   const walls = [];
   let size = 0;
@@ -72,11 +74,12 @@ export async function measure(label, request, { between } = {}) {
     await send('Profiler.start');
     const t = performance.now();
     const res = await fetch(url, { redirect: 'manual', ...init });
-    const body = await res.arrayBuffer();
+    const body = await res.clone().arrayBuffer();
     walls.push(performance.now() - t);
     const { result } = await send('Profiler.stop');
     size = body.byteLength;
     if (i === 0 && res.status >= 400) console.error(`${label}: HTTP ${res.status}`);
+    if (after) await after(res);
     const s = split(result.profile);
     for (const k of Object.keys(totals)) totals[k] += s[k];
   }
@@ -90,6 +93,31 @@ const origin = { Origin: new URL(base).origin };
 
 console.log(`| Request | Size | JS+GC | All busy | Wall (median) |`);
 console.log(`|---|---|---|---|---|`);
+if (set === 'storefront') {
+  // Cacheable pages get a unique query string, so they would miss even where a cache exists (none locally).
+  const miss = (path) => (i) => [`${base}${path}${path.includes('?') ? '&' : '?'}m=${i}`, {}];
+  await measure('`GET /`', miss('/'));
+  await measure('`GET /produkti/`', miss('/produkti/'));
+  await measure('`GET /produkti/?page=10`', miss('/produkti/?page=10'));
+  await measure('`GET /kategoriya/gotvarski/`', miss('/kategoriya/gotvarski/'));
+  await measure('Product page, 5 sizes (`/produkti/perf-450/`)', miss('/produkti/perf-450/'));
+  await measure('Product page, 1 size, series of 5 (`/produkti/perf-010/`)', miss('/produkti/perf-010/'));
+  await measure('`GET /kolichka/` (cart, never cached)', get('/kolichka/'));
+  await measure('`GET /porachka/` (checkout, never cached)', get('/porachka/'));
+  await measure('`GET /api/stock` (all 1,000 sizes)', get('/api/stock'));
+  await measure('`GET /api/cart-lines`, 5 ids', get('/api/cart-lines?ids=pv-0750,pv-0751,pv-0100,pv-0200,pv-0400'));
+  let lastOrder = '';
+  await measure('`POST /api/orders` (checkout submit, 1 item; email built, not sent)', () => {
+    const body = JSON.stringify({
+      name: 'Иван Иванов', phone: '0888123456', email: 'ivan@example.com', city: 'София', deliveryMethod: 'office',
+      office: 'Еконт, офис Лозенец', note: '', paymentMethod: 'cod', items: [{ id: 'pv-0750', qty: 1 }],
+    });
+    return [`${base}/api/orders`, { method: 'POST', body, headers: { 'Content-Type': 'application/json' } }];
+  }, { after: async (res) => (lastOrder = (await res.clone().json()).publicId ?? lastOrder) });
+  await measure('`GET /porachka/blagodarim/?id=…` (thank-you page)', () => [`${base}/porachka/blagodarim/?id=${lastOrder}`, {}]);
+  ws.close();
+  process.exit(0);
+}
 await measure('`GET /admin/` (orders page 1 of 20)', get('/admin/'));
 await measure('`GET /admin/?page=20`', get('/admin/?page=20'));
 await measure('`GET /admin/?status=new`', get('/admin/?status=new'));

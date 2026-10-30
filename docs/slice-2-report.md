@@ -13,7 +13,7 @@ The method is the same as docs/slice-1-report.md section 1. This time the script
   - 500 published products and 1,000 variants, the slice 1 mix: 300 with one variant, 100 with two, 100 with
     five, and 200 of them in 40 series of five;
   - 1,000 orders with 1–3 items each.
-- **Profiling:** `node scripts/profile-admin.mjs` takes a V8 CPU profile through the Worker's inspector (100 µs
+- **Profiling:** `node scripts/profile.mjs admin` (or `storefront`) takes a V8 CPU profile through the Worker's inspector (100 µs
   sampling) around each request: 50 requests per URL, one after another, after one warm-up request.
   - **JS+GC** is JavaScript (Astro and our code) plus garbage collection.
   - **All busy** adds V8's `(program)` time, which locally includes the D1 simulator. The real figure is most
@@ -72,9 +72,42 @@ For comparison, slice 1 measured the same method on the old admin:
 - **Product save: 12.6–15.9 ms.** This is parsing and checking the form, the SKU query, a batch of about 15
   statements, and the redirect.
 
-These numbers matter for the Free plan's 10 ms CPU limit. DECISIONS (2026-10-29) says the site launches on the
-paid plan, where the limit is 30 s and CPU is billed per millisecond. Admin pages are used by one person and
-are never cached. Options are listed in docs/HANDOFF.md.
+**Decision (2026-10-30, docs/DECISIONS.md): accepted.** Admin requests may exceed 10 ms CPU (measured up to
+~16 ms locally). The admin is single-user and runs only on Workers Paid (default 30 s CPU limit). Therefore
+Workers Paid must be active before the admin runs on Cloudflare, including staging.
+
+## Storefront, same data (ms per request, run 1 / run 2)
+
+Measured to know whether customer-facing pages stay under 10 ms. Same build, database and method as above.
+- Cacheable pages were requested with a unique query string, so every number is a cache miss.
+- The order POST ran with a dummy Resend key, so `sendEmail()` built both requests but didn't send them, as
+  in slice 1.
+- Each order took one item from a size whose stock was set to 100,000.
+
+| Request | Size | JS+GC | All busy | Wall (median) | Slice 1 JS+GC |
+|---|---|---|---|---|---|
+| `GET /` | 19.6 KB | 7.8 / 8.4 | 9.3 / 10.3 | 16.2 / 15.2 | 7.9 / 8.3 |
+| `GET /produkti/` | 19.0 KB | 8.7 / 8.0 | 10.8 / 10.8 | 17.8 / 16.8 | 8.7 / 7.6 |
+| `GET /produkti/?page=10` | 18.6 KB | 9.4 / 7.9 | 11.7 / 10.2 | 17.2 / 16.7 | 6.9 / 7.9 |
+| `GET /kategoriya/gotvarski/` | 18.9 KB | 8.6 / 8.0 | 11.2 / 10.6 | 17.7 / 17.4 | 7.7 / 7.2 |
+| Product page, 5 sizes | 12.5 KB | 7.6 / 7.6 | 9.8 / 9.1 | 15.7 / 15.5 | 7.6 / 7.4 |
+| Product page, 1 size, series of 5 | 13.0 KB | 7.0 / 7.6 | 9.7 / 9.2 | 15.9 / 15.7 | 7.3 / 6.5 |
+| `GET /kolichka/` (cart, never cached) | 10.8 KB | 4.2 / 3.9 | 5.0 / 4.4 | 9.9 / 9.8 | 5.3 / 4.7 |
+| `GET /porachka/` (checkout, never cached) | 12.9 KB | 3.6 / 3.5 | 5.0 / 4.2 | 10.1 / 9.4 | 5.0 / 5.8 |
+| `GET /api/stock` (all 1,000 sizes) | 11.9 KB | 8.6 / 9.0 | 9.8 / 9.7 | 15.6 / 15.7 | 10.5 / 8.7 |
+| `GET /api/cart-lines`, 5 ids | 1.0 KB | 5.4 / 5.3 | 7.0 / 6.6 | 12.4 / 12.4 | 5.8 / 5.4 |
+| **`POST /api/orders` (checkout submit, 1 item)** | | **15.2 / 14.9** | 17.1 / 16.5 | 23.8 / 23.9 | **9.8 / 9.9** |
+| `GET /porachka/blagodarim/?id=…` (thank-you) | 7.9 KB | 9.5 / 10.3 | 11.2 / 11.3 | 16.8 / 17.1 | 7.9 / 7.5 |
+
+- **Pages:** all the storefront pages stay under 10 ms JS+GC and are close to slice 1.
+- **Over 10 ms: the checkout submit, `POST /api/orders`, at about 15 ms against 9.8 ms in slice 1.**
+  - With email building switched off (no Resend key) it is still 14.4 / 14.9 ms, so the emails don't
+    explain the difference.
+  - The order code (`createOrder`, `orderableVariants`, `insertOrder`) is unchanged since slice 1.
+  - The per-function profile has no single hot spot: D1 result decoding (`toJson`, `text`) and per-query
+    tracing (`setAttributes`, `enterSpan`) are the largest parts.
+  - Not optimised; reported to the user (2026-10-30), and the cause is not yet known.
+- **Borderline:** the thank-you page, at 9.5 / 10.3 ms (slice 1: 7.9 / 7.5).
 
 ## Not measured
 
