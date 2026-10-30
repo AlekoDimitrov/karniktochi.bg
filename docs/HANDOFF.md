@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-30, after the footer social links, the new home
-text, and merging main into products-in-d1.
+Rewritten at the end of every task. Last updated: 2026-10-30, at the slice 2 stop after step 2 (English
+admin, Origin check, orders paginated at 50).
 
 ## Branch
 
@@ -13,16 +13,16 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Last 10 commits (before this one)
 
+- `5c2a1b8` Slice 2 step 2: admin orders paginated at 50; npm run seed:orders / unseed:orders for local test orders
+- `6b686a6` Slice 2 step 1: admin in English; reject cross-site admin requests (Origin check)
+- `341a3ce` Slice 2 plan approved with decisions; DECISIONS: deploy policy, slice 2 choices; CLAUDE.md: products in D1
+- `4ae1e76` DECISIONS: no Git-connected builds, karniktochi-bg deleted, deploys manual; HANDOFF updated
+- `cae39df` HANDOFF: Workers Builds findings, two Workers, live site is the hand-deployed karniktochi
+- `012de11` HANDOFF: social links, new home text, merge; Workers Builds deploys on push
 - `60ff51d` Merge main into products-in-d1: footer social links, home text, .gitignore
 - `b98643f` Home: new hero text, sharpening text, trust lines, real email and phone (main, cherry-pick of `6f73235`)
 - `d3260f9` .gitignore: node_modules without trailing slash, so a symlink is ignored too (main)
 - `e0db3b8` Footer: Facebook and Instagram icon links in the contact column (main)
-- `6f73235` Home: new hero text, sharpening text, trust lines, real email and phone
-- `042dd4a` DECISIONS: Organization JSON-LD and site wait for karniktochi.com
-- `02f6d0a` Shipping paid to the courier on delivery; remote D1 reset at launch; gitignore backups
-- `376f463` HANDOFF: branch pushed, excerpt files deleted, flag the untracked database backup
-- `da6caa7` Add docs/HANDOFF.md and docs/DECISIONS.md; CLAUDE.md: read decisions, update handoff
-- `ba22d8d` Fix what the click-through found: cart caps, unavailable lines, load failures, admin stock, 404s, phone overflow
 
 ## Finished
 
@@ -46,7 +46,15 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## In progress
 
-- Nothing. Slice 2 (admin product manager) is waiting for the brief.
+- Slice 2, the admin product manager: plan in docs/slice-2-plan.md (approved 2026-10-30).
+  - Steps 1–2 done:
+    - the admin is in English;
+    - the middleware rejects admin POST/PUT/PATCH/DELETE requests whose Origin isn't the site
+      (`src/lib/admin-origin.ts`), in dev too;
+    - orders show 50 per page, keeping the status filter; a bad `?page=` goes to page 1, and a page past
+      the end goes to the last page.
+  - Waiting for the user's click-through of the orders pages before step 3.
+  - Next: steps 3–6 (input parsing, the data layer, the products list, quick edit), then the next stop.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -64,6 +72,11 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
   - desktop and 390 px: 44×44 targets, cream icons, yellow on hover;
   - keyboard: Tab order Поверителност → Facebook → Instagram, yellow icon and outline on focus.
   - Not rechecked in a browser on products-in-d1 after the merge.
+- Admin orders in English with 124 local orders (120 from seed:orders):
+  - page 2 shows 51–100 with the pager;
+  - saving a test order's status on page 2 returns to page 2 at that order, with "Saved.";
+  - `?page=abc`, `?page=99` and a filtered page past the end redirect.
+  - A cross-site POST and a POST without Origin get 403 (checked with curl).
 
 ## Not tested in a browser
 
@@ -75,8 +88,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Test and build results (at this commit)
 
-- products-in-d1, with the merge resolved:
-  - `npm test`: 14 files, 133 tests, all passing;
+- products-in-d1 at `5c2a1b8`:
+  - `npm test`: 16 files, 153 tests, all passing;
   - `npx astro check`: 0 errors, 0 warnings;
   - `npm run build`: completes, check-hidden passes.
 - main at `b98643f`:
@@ -86,11 +99,6 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Open questions
 
-- The slice 2 brief itself (constraints already noted: admin pages under ~10 ms CPU at 1,000 variants and
-  1,000 orders, orders paginated at 50, inline quick edit replacing /admin/stock/, purgeEverything for
-  bulk operations).
-- Slice 2 plan: docs/slice-2-plan.md. It is a draft, not committed yet, waiting for approval and the
-  decisions listed at its end. It includes translating the admin to English.
 - Remote database: decided, not to be migrated. At launch it is reset (all tables dropped, all migrations
   applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
   the first deploy of this branch.
@@ -109,8 +117,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
   - The `fa78e84` build log was never read; it was probably deleted with the Worker.
   - The Cloudflare GitHub app may still be installed on the repo. It is harmless without a connected
     Worker; remove it in GitHub settings if you want.
-  - Still open: DECISIONS says "No deploy until the admin product manager works", but main was deployed
-    by hand on 2026-10-29. Does that decision still apply?
+  - Deploy policy decided: production only from products-in-d1 after slice 3; staging is allowed
+    (DECISIONS, 2026-10-30).
   - Still open: if a preview environment is ever added, give it its own D1 database first. There is only
     one database today.
 - The Organization JSON-LD and Astro `site` wait for karniktochi.com.
@@ -119,7 +127,10 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 - main (live): the admin orders list fails with more than 100 orders. Fixed on this branch only (`0aed0fd`).
   It is not backported, because main has no real users (DECISIONS, 2026-10-30).
-- The admin stock and orders pages render everything: about 40 ms and 26 ms CPU in the slice 1 measurement.
+- The admin stock page renders every variant: about 40 ms CPU in the slice 1 measurement. It will be
+  replaced in step 6. The orders page is now paginated but not measured yet (step 9).
+- The local database has 120 test orders from `npm run seed:orders`; `npm run unseed:orders` removes them.
+  Test order KT-00074 was set to Confirmed during the browser check.
 - /api/stock returns every public variant (about 12 KB at 1,000 variants).
 - Purging can't be checked locally: local dev has no Workers Cache and no purge().
 - Chrome may show a page's old copy once after an edit (stale-while-revalidate in the browser cache).
@@ -131,7 +142,7 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## New on this branch (names only)
 
-- Command: `npm run seed:dev`
+- Commands: `npm run seed:dev`, `npm run seed:orders`, `npm run unseed:orders` (local database only)
 - Config key: `cache.enabled` in wrangler.jsonc
 - Migration: `migrations/0002_products.sql`
 - Environment variables: none new. Decided but not yet added: `MEDIA_BASE_URL`, an R2 binding.
