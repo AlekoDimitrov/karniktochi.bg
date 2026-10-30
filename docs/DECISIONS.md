@@ -48,3 +48,6 @@ Reason: no shipping logic or shipping column is needed, and the courier's price 
 
 **2026-10-29: The remote D1 database holds only dummy data. At launch it is reset (all tables dropped, all migrations applied fresh) instead of migrated.**
 Reason: no real orders exist, so a reset removes the risk of migrating live data and starts order numbers clean. Database backups are never kept inside the repo (backup*.sql is gitignored).
+
+**2026-10-30: Add Organization JSON-LD and set `site` once karniktochi.com is bought.**
+Reason: no site URL is configured yet (no `site` in astro.config.mjs), and the JSON-LD needs the real URL.
