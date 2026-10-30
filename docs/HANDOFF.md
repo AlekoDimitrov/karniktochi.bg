@@ -1,6 +1,6 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-30, slice 2 finished (step 10 done). Next: the
+Rewritten at the end of every task. Last updated: 2026-10-30, after slice 2: admin path check, staging database decided. Next: the
 open list below, then slice 3 (photos).
 
 ## Branch
@@ -147,6 +147,23 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
     (cacheControlFor: anything but 200 is no-store; test "never caches … errors" in test/cache.test.ts). So
     no 404 can be stored, and publishing purges home, listing and the category through productPurgeTags.
 
+- Admin path spellings (2026-10-30), production build under wrangler dev with dummy non-empty
+  `ACCESS_TEAM_DOMAIN`/`ACCESS_AUD` (Access check on), paths sent unnormalised. All pass, no redirects, no
+  code change needed. Now a regression check: `npm run build && npm run check:admin-paths`
+  (`scripts/check-admin-paths.mjs`; not part of `npm test`, because it needs the build and a wrangler
+  server).
+
+  | Path | Status | Cache-Control |
+  |---|---|---|
+  | `/admin/`, `/admin` | 403 | private, no-store |
+  | `/ADMIN/`, `/Admin/products/` | 404 | no-store |
+  | `/%61dmin/`, `/%61dmin/products/` | 403 | private, no-store |
+  | `/admin%2Fproducts/` | 404 | no-store |
+  | `//admin/`, `/./admin/`, `/admin/products/../`, `/x/../admin/` | 403 | private, no-store |
+
+  The runtime decodes `%61` and resolves `.`/`..` before the middleware sees the path, so those reach the
+  Access check. Upper-case paths and an encoded slash match no route.
+
 ## Not tested in a browser
 
 - Anything on Cloudflare: cache hits, tag purges, workers.dev, the custom domain, real Cloudflare Access.
@@ -169,11 +186,11 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 ## Open questions
 
 - **Open before slice 3:**
-  1. **Staging database.** There is one D1 database, `karniktochi`, which the live Worker uses. A staging
-     deploy of this branch needs `migrations/0002_products.sql` applied to some remote database. Decide
-     between a separate staging D1 database (DECISIONS already says a preview environment gets its own
-     first) and resetting the shared one (DECISIONS, 2026-10-29 reset entry). I haven't touched the remote
-     database.
+  1. **Staging database: decided, not created.** Staging gets its own D1 database, `karniktochi-staging`
+     (DECISIONS, 2026-10-30). The production database `karniktochi` is not reset for staging, because the
+     live Worker still runs main, which expects the old schema. Still to do: create it, add a staging
+     environment to `wrangler.jsonc` bound to it, and apply all migrations to it. I haven't touched any
+     remote database.
   2. **Workers Paid** must be active before any staging deploy (DECISIONS, 2026-10-30).
   3. **Slice 3 setup:** R2 bucket and `MEDIA_BASE_URL` are decided but not configured. The slice 3 brief
      isn't written yet.
@@ -185,13 +202,17 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
      - footer social links not rechecked in a browser on this branch; the 4 px sideways scroll at 390 px
        on main;
      - keyboard-only and screen-reader checks of the new admin pages;
-     - the reasons marked "not recorded" in docs/DECISIONS.md.
+     - the reasons marked "not recorded" in docs/DECISIONS.md;
+     - `setStock()` in `src/lib/orders.ts`: no app code calls it, but `test/stock.test.ts` (1 test) and
+       `test/stock-api.test.ts` (2 tests) use it to set up stock. Not deleted; waiting for the user.
 
 - **Staging checklist** (things only Cloudflare can show), in order:
   1. Workers Paid must be active before the admin runs on Cloudflare, including staging (DECISIONS,
      2026-10-30).
-  2. A remote D1 database for staging with migrations 0001–0002 applied (open item 1), and a deploy of
-     products-in-d1 by hand with wrangler, never from main.
+  2. Create the D1 database `karniktochi-staging`, bind it in a staging environment in `wrangler.jsonc`,
+     and apply migrations 0001–0002 to it (open item 1). Never apply them to `karniktochi`, the
+     production database. Then deploy products-in-d1 by hand with wrangler to that environment, never
+     from main.
   3. `X-Robots-Tag: noindex, nofollow` present on the staging address.
   4. Cloudflare Access on /admin: without a login you get the Access page; with one, the middleware
      accepts the JWT; a cross-site admin POST still gets 403.
@@ -252,7 +273,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## New on this branch (names only)
 
-- Commands: `npm run seed:dev`, `npm run seed:orders`, `npm run unseed:orders` (local database only)
+- Commands: `npm run seed:dev`, `npm run seed:orders`, `npm run unseed:orders` (local database only),
+  `npm run check:admin-paths` (after a build)
 - Scripts: `scripts/seed-perf.mjs` (SQL for a throwaway local performance database), `scripts/profile.mjs`
   (CPU profiles of the admin or storefront requests under wrangler dev)
 - Config key: `cache.enabled` in wrangler.jsonc

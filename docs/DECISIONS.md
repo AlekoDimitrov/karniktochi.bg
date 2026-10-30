@@ -78,3 +78,6 @@ Reason: as stated. Measurements in docs/slice-2-report.md (the products list at 
 
 **2026-10-30: Checkout submit (POST /api/orders) ~15 ms CPU locally, flat with order count, accepted under Workers Paid.**
 Reason: the user accepted it after a check that its CPU doesn't grow with the orders already stored. It was flat at 0, 1,000 and 5,000 orders (9.0–10.6 ms JS+GC on that rerun; the first measurement was 14.4–15.2 ms). Real checkout CPU is to be measured on Cloudflare during staging. Details in docs/slice-2-report.md.
+
+**2026-10-30: Staging uses its own D1 database (karniktochi-staging). The production database is not reset for staging, because the live Worker still runs main, which expects the old schema.**
+Reason: as stated. The database is not created yet.
