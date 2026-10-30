@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-30, at the slice 2 stop after step 8 (create and
-edit form, preview, View on site).
+Rewritten at the end of every task. Last updated: 2026-10-30, at the slice 2 stop after step 9 (speed
+measured; a decision is needed before step 10).
 
 ## Branch
 
@@ -13,6 +13,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Last 10 commits (before this one)
 
+- `e93b471` Slice 2 step 9: admin speed measured (docs/slice-2-report.md); Sofia dates without Intl time zones; one read per product save; seed-perf and profile-admin scripts
+- `3068fa9` HANDOFF: slice 2 stop after step 8
 - `b0e635e` Slice 2 step 8: admin preview of any product (draft banner, cart off) and View on site links; product page body shared as ProductView
 - `4bc29fa` Slice 2 step 7: create and edit product form with sizes editor, conflict and stock checks, archived sizes with restore, delete draft with confirmation; slug 'new' reserved
 - `1b387e8` HANDOFF: slice 2 stop after step 6
@@ -20,9 +22,6 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - `374b7ee` Slice 2 step 5: admin products list: search, category and status filters, 50 per page, price range, stock, status
 - `68e885f` Slice 2 step 4: admin data layer: list/search, create, edit with size diff and conflict checks, quick edit, delete draft, archive demos; purgeAll
 - `e3824b3` Slice 2 step 3: admin input parsing: euro prices to exact cents, product form validation
-- `8661bf8` HANDOFF: slice 2 stop after step 2
-- `5c2a1b8` Slice 2 step 2: admin orders paginated at 50; npm run seed:orders / unseed:orders for local test orders
-- `6b686a6` Slice 2 step 1: admin in English; reject cross-site admin requests (Origin check)
 
 ## Finished
 
@@ -60,7 +59,7 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
     - `/admin/products/`: search (name, brand, slug, SKU), filters, 50 per page, quick edit per size,
       "Archive all demo products" with a confirmation;
     - `/admin/stock/` now redirects (301) to `/admin/products/`.
-  - Steps 7–8 done, waiting for the user's click-through:
+  - Steps 7–8, checked by the user in the browser:
     - `/admin/products/new/` and `/admin/products/{slug}/`: one form (`src/components/admin/ProductForm.astro`)
       with every product field, the sizes editor (`src/scripts/admin-variants.ts`: Add size, Move up/down;
       without JavaScript, spare rows and order numbers), errors per field with the typing kept, the
@@ -73,7 +72,12 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
     - the product page body moved to `src/components/ProductView.astro`. The storefront HTML was compared
       before and after on 4 product pages: identical.
     - The slug "new" is reserved (it would collide with /admin/products/new/).
-  - Next: steps 9–10 (speed measurement into docs/slice-2-report.md, then docs), then the last stop.
+  - Step 9 done (docs/slice-2-report.md):
+    - orders pages are now 7–9 ms JS+GC: the dates no longer use Intl time zones;
+    - edit and preview are 7–8 ms; quick edit 9–11 ms;
+    - **over the ~10 ms target:** the products list at 11–15 ms, and the product save at 12.6–15.9 ms.
+  - Waiting for the user's decision on the overage (see the open questions), then step 10 (docs) and the
+    last stop. `npm run unseed:orders` runs before that stop.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -126,6 +130,14 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
   - delete a draft: confirmation, then "Deleted the draft …"; no product, size or stock rows left;
   - 390 px: new, edit and preview pages with no sideways scroll.
 
+- Checks before step 9 (2026-10-30):
+  - check-hidden still catches problems: with `hidden` removed from the added-to-cart message the build
+    failed ("not hidden: <p class=\"pdp__added\" data-added role=\"status\">"); with the data-max element
+    gone it failed ("no element with data-max"); restored, it passes.
+  - A product URL that 404s (a draft or a missing product) sends `Cache-Control: no-store` and no Cache-Tag
+    (cacheControlFor: anything but 200 is no-store; test "never caches … errors" in test/cache.test.ts). So
+    no 404 can be stored, and publishing purges home, listing and the category through productPurgeTags.
+
 ## Not tested in a browser
 
 - Anything on Cloudflare: cache hits, tag purges, workers.dev, the custom domain, real Cloudflare Access.
@@ -136,8 +148,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Test and build results (at this commit)
 
-- products-in-d1 at `b0e635e`:
-  - `npm test`: 18 files, 261 tests, all passing;
+- products-in-d1 at `e93b471`:
+  - `npm test`: 19 files, 265 tests, all passing;
   - `npx astro check`: 0 errors, 0 warnings;
   - `npm run build`: completes, check-hidden passes.
 - main at `b98643f`:
@@ -146,6 +158,17 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
   - `npm run build`: completes, check-hidden passes.
 
 ## Open questions
+
+- **Decision for slice 2:** the products list (11–15 ms) and the product save (12.6–15.9 ms) are over the
+  ~10 ms target; the details are in docs/slice-2-report.md. Options:
+  1. Accept them. The site launches on the paid plan (DECISIONS, 2026-10-29), where the CPU limit is 30 s;
+     these are admin-only pages used by one person, and never cached.
+  2. Show 25 products per page instead of 50. That would be about 7–8 ms by the per-row cost measured,
+     but more paging.
+  3. Make quick edit one form per product, or load it on demand. That changes the plan and is more work,
+     and the floor is still about 11 ms at 50 rows.
+  - The save has no cheap fix found. Its work is the form checks, a SKU query, a batch of about 15
+    statements and the redirect.
 
 - Remote database: decided, not to be migrated. At launch it is reset (all tables dropped, all migrations
   applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
@@ -175,7 +198,6 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 - main (live): the admin orders list fails with more than 100 orders. Fixed on this branch only (`0aed0fd`).
   It is not backported, because main has no real users (DECISIONS, 2026-10-30).
-- The admin orders and products pages are paginated at 50 but not measured yet (step 9).
 - The local database has 120 test orders from `npm run seed:orders`; `npm run unseed:orders` removes them.
   The user asked to keep them until the step 10 stop. Test order KT-00074 was set to Confirmed during the
   browser check.
@@ -199,6 +221,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 ## New on this branch (names only)
 
 - Commands: `npm run seed:dev`, `npm run seed:orders`, `npm run unseed:orders` (local database only)
+- Scripts: `scripts/seed-perf.mjs` (SQL for a throwaway local performance database), `scripts/profile-admin.mjs`
+  (CPU profiles of the admin pages under wrangler dev)
 - Config key: `cache.enabled` in wrangler.jsonc
 - Migration: `migrations/0002_products.sql`
 - Environment variables: none new. Decided but not yet added: `MEDIA_BASE_URL`, an R2 binding.
