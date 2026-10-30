@@ -250,21 +250,40 @@ const toOrder = (r: OrderRow, items: ItemRow[]): Order => ({
     })),
 });
 
+/** Orders per page in the admin. */
+export const ORDERS_PAGE_SIZE = 50;
+
+/** Newest first, skipping `offset` orders. Pass a status to filter. Also returns how many orders match. */
+async function selectOrders(db: D1Database, status: OrderStatus | undefined, limit: number, offset: number) {
+  const where = status ? 'WHERE status = ?' : '';
+  const filter = status ? [status] : [];
+  const page = `SELECT id FROM orders ${where} ORDER BY id DESC LIMIT ? OFFSET ?`;
+  // Items come through the same selection as a subquery: binding every order id would pass D1's limit of
+  // 100 bound parameters.
+  const [count, orders, items] = await db.batch([
+    db.prepare(`SELECT COUNT(*) AS n FROM orders ${where}`).bind(...filter),
+    db.prepare(`SELECT * FROM orders WHERE id IN (${page}) ORDER BY id DESC`).bind(...filter, limit, offset),
+    db.prepare(`SELECT * FROM order_items WHERE order_id IN (${page})`).bind(...filter, limit, offset),
+  ]);
+  const total = (count.results[0] as { n: number }).n;
+  const list = (orders.results as OrderRow[]).map((o) => toOrder(o, items.results as ItemRow[]));
+  return { total, orders: list };
+}
+
 /** Newest first. Pass a status to filter. */
 export async function listOrders(db: D1Database, status?: OrderStatus, limit = 200): Promise<Order[]> {
-  const where = status ? 'WHERE status = ?' : '';
-  const params = status ? [status, limit] : [limit];
-  const orders = await db
-    .prepare(`SELECT * FROM orders ${where} ORDER BY id DESC LIMIT ?`)
-    .bind(...params)
-    .all<OrderRow>();
-  if (!orders.results.length) return [];
-  // The same selection as a subquery: binding every order id would pass D1's limit of 100 bound parameters.
-  const items = await db
-    .prepare(`SELECT * FROM order_items WHERE order_id IN (SELECT id FROM orders ${where} ORDER BY id DESC LIMIT ?)`)
-    .bind(...params)
-    .all<ItemRow>();
-  return orders.results.map((o) => toOrder(o, items.results));
+  return (await selectOrders(db, status, limit, 0)).orders;
+}
+
+export type OrdersPage = { orders: Order[]; total: number; page: number; pages: number };
+
+/**
+ * One admin page of orders (ORDERS_PAGE_SIZE per page), newest first, with the total for the pager.
+ * A page past the last one comes back empty; `pages` is at least 1.
+ */
+export async function listOrdersPage(db: D1Database, { status, page = 1 }: { status?: OrderStatus; page?: number }): Promise<OrdersPage> {
+  const { total, orders } = await selectOrders(db, status, ORDERS_PAGE_SIZE, (page - 1) * ORDERS_PAGE_SIZE);
+  return { orders, total, page, pages: Math.max(1, Math.ceil(total / ORDERS_PAGE_SIZE)) };
 }
 
 async function getOrderWhere(db: D1Database, column: 'id' | 'public_id', value: number | string) {

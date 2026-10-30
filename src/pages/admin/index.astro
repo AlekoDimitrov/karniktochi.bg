@@ -1,14 +1,17 @@
 ---
 import { env } from 'cloudflare:workers';
 import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminPagination from '../../components/admin/AdminPagination.astro';
 import { formatPrice } from '../../lib/format';
 import { formatBgPhone } from '../../lib/checkout-input';
+import { parsePage } from '../../lib/catalog';
 import {
   changeStatus,
   getOrder,
   itemTitle,
-  listOrders,
+  listOrdersPage,
   ORDER_STATUSES,
+  ORDERS_PAGE_SIZE,
   OutOfStockError,
   setInternalNote,
   StatusConflictError,
@@ -64,7 +67,22 @@ const messages: Record<string, string> = {
   stock: 'Not enough stock to move this order back to an active status. Nothing was saved.',
 };
 const msg = messages[Astro.url.searchParams.get('msg') ?? ''];
-const orders = await listOrders(env.DB, status);
+
+// The list's own URL for page n, keeping the status filter. Page 1 has no ?page=.
+const pageHref = (n: number) => {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (n > 1) params.set('page', String(n));
+  const query = params.toString();
+  return query ? `/admin/?${query}` : '/admin/';
+};
+// A malformed ?page= goes to page 1, a page past the end to the last page.
+const page = parsePage(Astro.url.searchParams.get('page'));
+if (page === null) return Astro.redirect(pageHref(1), 303);
+const { orders, total, pages } = await listOrdersPage(env.DB, { status, page });
+if (page > pages) return Astro.redirect(pageHref(pages), 303);
+const from = (page - 1) * ORDERS_PAGE_SIZE + 1;
+const to = from + orders.length - 1;
 // Sofia time, written in English with day/month order.
 const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Europe/Sofia', dateStyle: 'short', timeStyle: 'short' });
 ---
@@ -78,6 +96,7 @@ const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { timeZone: 
   </nav>
   {msg && <p class="admin-msg" role="status">{msg}</p>}
   {orders.length === 0 && <p style="margin-top: 24px">No orders.</p>}
+  {total > 0 && <p class="muted" style="margin-top: 16px">Showing {from}–{to} of {total}</p>}
   <ol class="orders">
     {orders.map((o) => (
       <li class="order" id={`order-${o.id}`} data-status={o.status}>
@@ -118,4 +137,5 @@ const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { timeZone: 
       </li>
     ))}
   </ol>
+  <AdminPagination page={page} pages={pages} href={pageHref} label="Order pages" />
 </AdminLayout>

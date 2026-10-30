@@ -1,0 +1,24 @@
+---
+// Pager for admin lists. `href(n)` builds the URL of page n, keeping the list's filters.
+interface Props { page: number; pages: number; href: (n: number) => string; label: string }
+const { page, pages, href, label } = Astro.props;
+
+// First, last and two either side of the current page; gaps become an ellipsis.
+const shown = [...Array(pages).keys()].map((i) => i + 1).filter((n) => n === 1 || n === pages || Math.abs(n - page) <= 2);
+---
+{
+  pages > 1 && (
+    <nav class="pagination" aria-label={label}>
+      {page > 1 ? <a class="chip" href={href(page - 1)} rel="prev">← Previous</a> : null}
+      {shown.map((n, i) => (
+        <>
+          {i > 0 && n - shown[i - 1] > 1 && <span class="pagination__gap" aria-hidden="true">…</span>}
+          <a class="chip" href={href(n)} aria-current={n === page ? 'page' : undefined} aria-label={`Page ${n}`}>
+            {n}
+          </a>
+        </>
+      ))}
+      {page < pages ? <a class="chip" href={href(page + 1)} rel="next">Next →</a> : null}
+    </nav>
+  )
+}

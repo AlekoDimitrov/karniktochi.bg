@@ -12,6 +12,8 @@
     "astro": "astro",
     "generate-types": "wrangler types --strict-vars=false",
     "seed:dev": "wrangler d1 execute karniktochi --local --file scripts/seed-dev.sql",
+    "seed:orders": "wrangler d1 execute karniktochi --local --file scripts/seed-orders.sql",
+    "unseed:orders": "wrangler d1 execute karniktochi --local --file scripts/unseed-orders.sql",
     "test": "vitest run"
   },
   "dependencies": {
