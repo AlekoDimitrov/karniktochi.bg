@@ -272,6 +272,11 @@ h1, h2, h3, p { margin: 0; }
 .site-footer h3 { font-size: 13px; font-weight: 600; letter-spacing: 0.14em; color: var(--accent); margin-bottom: 8px; }
 .site-footer a { display: inline-flex; align-items: center; min-height: 36px; }
 .site-footer .small { font-size: 15px; }
+.site-footer__social { display: flex; gap: 8px; margin-top: 8px; margin-left: -11px; }
+.site-footer__social a { justify-content: center; width: 44px; height: 44px; color: var(--cream); }
+.site-footer__social a:hover, .site-footer__social a:focus-visible { color: var(--accent); }
+.site-footer__social a:focus-visible { outline: 3px solid var(--accent); outline-offset: 0; border-radius: var(--radius); }
+.site-footer__social svg { width: 22px; height: 22px; fill: currentColor; }
 .site-footer__legal { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--pad) 32px; font-size: 13px; color: #a9b3ab; }
 
 @media (max-width: 640px) {

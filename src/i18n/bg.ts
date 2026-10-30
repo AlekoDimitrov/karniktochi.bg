@@ -177,6 +177,8 @@ export const bg = {
     phone: '[Телефон]',
     copyright: '© Карник Точи',
     stonesCare: 'Камъни и поддръжка',
+    facebook: 'Карник Точи във Facebook (отваря се в нов прозорец)',
+    instagram: 'Карник Точи в Instagram (отваря се в нов прозорец)',
   },
 } as const;
 
