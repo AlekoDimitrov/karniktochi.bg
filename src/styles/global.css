@@ -403,6 +403,18 @@ input[aria-invalid='true'] { border-color: #b3261e; }
 .product-row__facts dd { margin: 0; font-weight: 500; }
 .product-row__actions { display: flex; flex-wrap: wrap; gap: 4px 20px; }
 .product-row__actions a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.quick-edit { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; padding-top: 10px; border-top: 1px solid rgba(23, 35, 31, 0.12); }
+.quick-edit__size { flex: 1 1 140px; align-self: center; font-weight: 600; overflow-wrap: anywhere; }
+.quick-edit label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; }
+.quick-edit input[name='price'] { width: 120px; }
+.quick-edit input[name='stock'] { width: 100px; }
+.quick-edit .form-error { flex: 1 1 100%; }
+.quick-edit__ok { align-self: center; font-weight: 600; color: var(--green); }
+.admin-bulk { margin-top: 16px; }
+.admin-bulk a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.admin-confirm { margin-top: 20px; padding: 16px 20px; background: #fff; border: 2px solid var(--ink); border-radius: var(--radius); display: flex; flex-direction: column; gap: 8px; }
+.admin-confirm__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.admin-confirm__actions a { display: inline-flex; align-items: center; min-height: 44px; }
 
 /* Bubble pause button */
 .bubble-wrap { position: relative; }

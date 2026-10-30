@@ -1,15 +1,25 @@
 ---
-import { env } from 'cloudflare:workers';
+import * as workers from 'cloudflare:workers';
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import AdminPagination from '../../../components/admin/AdminPagination.astro';
-import { ADMIN_PAGE_SIZE, listAdminProducts, SEARCH_MAX } from '../../../lib/admin-products';
+import { centsToInput, parseQuickEdit, PRICE_ERRORS, STOCK_ERROR } from '../../../lib/admin-input';
+import {
+  ADMIN_PAGE_SIZE,
+  archiveAllDemos,
+  countUnarchivedDemos,
+  listAdminProducts,
+  quickEditVariant,
+  SEARCH_MAX,
+} from '../../../lib/admin-products';
 import { categoryLabel, productStatusLabel } from '../../../lib/admin-labels';
+import { productPurgeTags, purgeAll, purgerFrom, purgeTags, stockPurgeTags } from '../../../lib/cache-purge';
 import { CATEGORIES, parsePage, priceRange, PRODUCT_STATUSES, totalStock, type Category, type Product, type ProductStatus } from '../../../lib/catalog';
 import { formatPrice } from '../../../lib/format';
 import { visibility } from '../../../lib/products';
 
 export const prerender = false;
 
+const { env } = workers;
 const params = Astro.url.searchParams;
 const q = (params.get('q') ?? '').trim().slice(0, SEARCH_MAX);
 const categoryParam = params.get('category');
@@ -30,6 +40,81 @@ const pageHref = (n: number) => {
 // A malformed ?page= goes to page 1, a page past the end to the last page.
 const page = parsePage(params.get('page'));
 if (page === null) return Astro.redirect(pageHref(1), 303);
+
+// Back to this list (same search, filters and page) with a result to show, then a hash to scroll to.
+const back = (result: Record<string, string>, hash = '') => {
+  const url = new URL(pageHref(page), Astro.url);
+  for (const [k, v] of Object.entries(result)) url.searchParams.set(k, v);
+  return Astro.redirect(url.pathname + url.search + hash, 303);
+};
+
+// A price error travels in the redirect as its PRICE_ERRORS key.
+const priceErrorCode = (message: string) => Object.entries(PRICE_ERRORS).find(([, m]) => m === message)?.[0] ?? 'format';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+  const purger = purgerFrom(workers);
+
+  if (action === 'archive-demos') {
+    const n = await archiveAllDemos(env.DB);
+    // A bulk change: one purge of everything instead of one per product.
+    if (n > 0) await purgeAll(purger);
+    return back({ archived: String(n) });
+  }
+
+  if (action === 'quick') {
+    const parsed = parseQuickEdit(form);
+    if (!parsed.ok) {
+      if (parsed.errors.form || !parsed.variantId) return back({ msg: 'invalid' });
+      const errorCode = parsed.errors.price ? priceErrorCode(parsed.errors.price) : '';
+      return back(
+        { err: parsed.variantId, ep: errorCode, es: parsed.errors.stock ? '1' : '', tp: String(form.get('price') ?? '').slice(0, 30), ts: String(form.get('stock') ?? '').slice(0, 10) },
+        `#v-${parsed.variantId}`,
+      );
+    }
+    const { variantId, ...edit } = parsed.value;
+    const result = await quickEditVariant(env.DB, variantId, edit);
+    if (!result.ok && result.reason === 'missing') return back({ msg: 'missing' });
+    if (!result.ok) {
+      return back(
+        { err: variantId, shown: String(edit.stockWas), now: String(result.now), tp: String(form.get('price') ?? '').slice(0, 30), ts: String(edit.stock) },
+        `#v-${variantId}`,
+      );
+    }
+    // Prices show on home, listing and category pages; stock on product pages and /api/stock.
+    const purge = [
+      ...(result.priceChanged ? productPurgeTags({ id: result.productId, category: result.category }) : []),
+      ...(result.stockChanged || result.priceChanged ? stockPurgeTags(result.productId) : []),
+    ];
+    if (purge.length) await purgeTags(purger, [...new Set(purge)]);
+    return back({ saved: variantId }, `#v-${variantId}`);
+  }
+  return back({ msg: 'invalid' });
+}
+
+// What the last post did, from the redirect's query string.
+const savedId = params.get('saved');
+const errId = params.get('err');
+const errors = errId
+  ? {
+      price: PRICE_ERRORS[params.get('ep') as keyof typeof PRICE_ERRORS] ?? undefined,
+      stock: params.get('es') === '1' ? STOCK_ERROR : undefined,
+      changed: params.has('now') ? { shown: params.get('shown'), now: params.get('now') } : undefined,
+      typedPrice: params.get('tp') ?? '',
+      typedStock: params.get('ts') ?? '',
+    }
+  : null;
+const archived = params.get('archived');
+const listMessages: Record<string, string> = {
+  invalid: 'Invalid request. Nothing was saved; reload the page and try again.',
+  missing: 'That size no longer exists or was archived. Nothing was saved.',
+};
+const msg = archived !== null
+  ? archived === '0' ? 'There were no demo products to archive.' : `Archived ${archived} demo product${archived === '1' ? '' : 's'}.`
+  : listMessages[params.get('msg') ?? ''];
+const confirmArchive = params.get('confirm') === 'archive-demos';
+const demosLeft = await countUnarchivedDemos(env.DB);
 const { products, total, pages } = await listAdminProducts(env.DB, { q, category, status, page });
 if (page > pages) return Astro.redirect(pageHref(pages), 303);
 const from = (page - 1) * ADMIN_PAGE_SIZE + 1;
@@ -70,6 +155,26 @@ const filtered = Boolean(q || category || status);
     {filtered && <a class="admin-filters__clear" href="/admin/products/">Clear</a>}
   </form>
 
+  {msg && <p class="admin-msg" role="status">{msg}</p>}
+
+  {demosLeft > 0 && (
+    confirmArchive ? (
+      <div class="admin-confirm" role="alertdialog" aria-labelledby="archive-demos-title">
+        <p id="archive-demos-title"><strong>Archive all {demosLeft} demo product{demosLeft === 1 ? '' : 's'}?</strong></p>
+        <p>They disappear from the shop at once. Orders for them are not affected, and each one can be published again from its edit page.</p>
+        <form method="post" class="admin-confirm__actions">
+          <input type="hidden" name="action" value="archive-demos" />
+          <button class="btn btn--accent" type="submit">Yes, archive {demosLeft} demo product{demosLeft === 1 ? '' : 's'}</button>
+          <a href={pageHref(page)}>Cancel</a>
+        </form>
+      </div>
+    ) : (
+      <p class="admin-bulk">
+        <a href={`${pageHref(page)}${pageHref(page).includes('?') ? '&' : '?'}confirm=archive-demos`}>Archive all demo products ({demosLeft})…</a>
+      </p>
+    )
+  )}
+
   {total === 0 && <p style="margin-top: 24px">{filtered ? 'No products match.' : 'No products yet.'}</p>}
   {total > 0 && <p class="muted" style="margin-top: 16px">Showing {from}–{to} of {total}</p>}
 
@@ -91,6 +196,56 @@ const filtered = Boolean(q || category || status);
           <a href={`/admin/products/${p.id}/`}>Edit<span class="visually-hidden"> {p.name}</span></a>
           {onSite(p) && <a href={`/produkti/${p.id}/`}>View on site<span class="visually-hidden"> ({p.name})</span></a>}
         </div>
+        {p.variants.map((v) => {
+          const label = v.optionValue || 'Price and stock';
+          const name = v.optionValue ? `${p.name}, ${v.optionValue}` : p.name;
+          const e = errId === v.id ? errors : null;
+          return (
+            <form method="post" class="quick-edit" id={`v-${v.id}`}>
+              <input type="hidden" name="action" value="quick" />
+              <input type="hidden" name="id" value={v.id} />
+              <input type="hidden" name="stock_was" value={v.stock} />
+              <span class="quick-edit__size">{label}</span>
+              <label>
+                Price (€)
+                <input
+                  type="text"
+                  name="price"
+                  inputmode="decimal"
+                  required
+                  value={e ? e.typedPrice : centsToInput(v.priceCents)}
+                  aria-label={`Price in euros for ${name}`}
+                  aria-invalid={e?.price ? 'true' : undefined}
+                  aria-describedby={e?.price ? `vp-${v.id}` : undefined}
+                />
+              </label>
+              <label>
+                Stock
+                <input
+                  type="number"
+                  name="stock"
+                  min="0"
+                  max="100000"
+                  step="1"
+                  required
+                  value={e && !e.changed ? e.typedStock : v.stock}
+                  aria-label={`Stock for ${name}`}
+                  aria-invalid={e?.stock || e?.changed ? 'true' : undefined}
+                  aria-describedby={e?.stock || e?.changed ? `vs-${v.id}` : undefined}
+                />
+              </label>
+              <button class="btn btn--accent" type="submit">Save<span class="visually-hidden"> {name}</span></button>
+              {savedId === v.id && <span class="quick-edit__ok" role="status">Saved.</span>}
+              {e?.price && <span class="form-error" id={`vp-${v.id}`} role="alert">Not saved. {e.price}</span>}
+              {e?.stock && <span class="form-error" id={`vs-${v.id}`} role="alert">Not saved. {e.stock}</span>}
+              {e?.changed && (
+                <span class="form-error" id={`vs-${v.id}`} role="alert">
+                  Not saved: an order changed the stock from {e.changed.shown} to {e.changed.now} while the page was open. The field now shows {e.changed.now}; check it and save again.
+                </span>
+              )}
+            </form>
+          );
+        })}
       </li>
     ))}
   </ul>

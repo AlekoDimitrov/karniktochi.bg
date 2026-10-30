@@ -3,6 +3,7 @@ import {
   centsToInput,
   MAX_VARIANT_ROWS,
   parsePriceToCents,
+  parseQuickEdit,
   parseProductForm,
   PRICE_ERRORS,
   STOCK_ERROR,
@@ -261,5 +262,39 @@ describe('the product form', () => {
     expect(r.raw.rows).toEqual([
       { id: '', option: '', sku: '', price: '1.299', stock: '7', stockWas: '', remove: false },
     ]);
+  });
+});
+
+describe('the quick edit form', () => {
+  const quick = (fields: Record<string, string>) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(fields)) fd.set(k, v);
+    return parseQuickEdit(fd);
+  };
+
+  it('reads price, stock and the stock that was shown', () => {
+    expect(quick({ id: 'v_1', price: '1 299,90', stock: ' 4 ', stock_was: '5' })).toEqual({
+      ok: true,
+      value: { variantId: 'v_1', priceCents: 129990, stock: 4, stockWas: 5 },
+    });
+  });
+
+  // The cases the old /admin/stock/ form rejected, now on the quick edit.
+  it.each(['', '   ', '-5', '2.5', '1e3', 'abc', '100001'])('rejects the stock %j', (stock) => {
+    expect(quick({ id: 'v_1', price: '10', stock, stock_was: '5' })).toEqual({ ok: false, variantId: 'v_1', errors: { stock: STOCK_ERROR } });
+  });
+
+  it('reports a bad price and a bad stock together', () => {
+    expect(quick({ id: 'v_1', price: '1.299', stock: 'x', stock_was: '5' })).toEqual({
+      ok: false,
+      variantId: 'v_1',
+      errors: { price: PRICE_ERRORS.dotThousands, stock: STOCK_ERROR },
+    });
+  });
+
+  it('refuses a post without the size or the stock that was shown', () => {
+    const broken = { form: 'The form is incomplete. Reload the page.' };
+    expect(quick({ price: '10', stock: '1', stock_was: '1' })).toMatchObject({ ok: false, errors: broken });
+    expect(quick({ id: 'v_1', price: '10', stock: '1' })).toMatchObject({ ok: false, errors: broken });
   });
 });

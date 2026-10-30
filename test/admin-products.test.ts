@@ -5,6 +5,7 @@ import { parseProductForm, type ProductForm } from '../src/lib/admin-input';
 import {
   ADMIN_PAGE_SIZE,
   archiveAllDemos,
+  countUnarchivedDemos,
   createAdminProduct,
   deleteDraftProduct,
   getAdminProduct,
@@ -110,6 +111,8 @@ describe('the admin product list', () => {
     expect(await names('ГЮТО')).toEqual(['Гюто Шибата']); // through the lower-case spelling
     expect(await names('такамура')).toEqual(['Петти Такамура']);
     expect(await names('naniwa')).toEqual(['Камък 1000']);
+    expect(await names('takamura')).toEqual(['Петти Такамура']); // through the slug
+    expect(await names('petti-tak')).toEqual(['Петти Такамура']);
     expect(await names('shi-21')).toEqual(['Гюто Шибата']);
     expect(await names('%')).toEqual([]);
     expect(await names('  ')).toHaveLength(3);
@@ -329,7 +332,9 @@ describe('deleting and archiving', () => {
     const demo = await addProduct(db, { name: 'Демо 1', isDemo: true });
     await addProduct(db, { name: 'Демо 2', isDemo: true, status: 'archived' });
     const real = await addProduct(db, { name: 'Истински' });
+    expect(await countUnarchivedDemos(db)).toBe(1);
     expect(await archiveAllDemos(db)).toBe(1);
+    expect(await countUnarchivedDemos(db)).toBe(0);
     expect((await load(demo)).status).toBe('archived');
     expect((await load(real)).status).toBe('published');
     expect(await getProductPage(db, demo, { includeDemo: true })).toBeNull();

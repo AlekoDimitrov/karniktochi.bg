@@ -48,7 +48,8 @@ export type AdminListPage = { products: Product[]; total: number; page: number; 
 
 /**
  * One page of the admin product list, newest first, with each product's active sizes and their stock.
- * Search matches the name, the brand or any size's SKU. A page past the last one comes back empty.
+ * Search matches the name, the brand, the slug (the name in Latin letters) or any size's SKU. A page past
+ * the last one comes back empty.
  */
 export async function listAdminProducts(db: D1Database, filter: AdminListFilter = {}): Promise<AdminListPage> {
   const page = filter.page ?? 1;
@@ -58,8 +59,9 @@ export async function listAdminProducts(db: D1Database, filter: AdminListFilter 
   if (q) {
     const any = searchForms(q).map((form) => {
       const like = `%${escapeLike(form)}%`;
-      params.push(like, like, like);
-      return `p.name LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\'
+      params.push(like, like, like, like);
+      // The slug is the name in Latin letters, so "takamura" finds "Петти Такамура".
+      return `p.name LIKE ? ESCAPE '\\' OR p.brand LIKE ? ESCAPE '\\' OR p.id LIKE ? ESCAPE '\\'
         OR EXISTS (SELECT 1 FROM variants sv WHERE sv.product_id = p.id AND sv.sku LIKE ? ESCAPE '\\')`;
     });
     where.push(`(${any.join(' OR ')})`);
@@ -344,6 +346,11 @@ export async function deleteDraftProduct(db: D1Database, productId: string): Pro
     db.prepare(`DELETE FROM products WHERE id = ? AND status = 'draft'`).bind(productId),
   ]);
   return { ok: true, productId, category: product.category };
+}
+
+/** How many demo products aren't archived yet (the products list offers to archive them). */
+export async function countUnarchivedDemos(db: D1Database): Promise<number> {
+  return (await db.prepare(`SELECT COUNT(*) AS n FROM products WHERE is_demo = 1 AND status <> 'archived'`).first<number>('n')) ?? 0;
 }
 
 /** Archives every demo product that isn't archived yet. Returns how many were archived. */

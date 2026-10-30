@@ -314,3 +314,26 @@ export function parseProductForm(form: FormData, existingIds: ReadonlySet<string
     },
   };
 }
+
+// ---- Quick edit -----------------------------------------------------------------------------------
+
+export type QuickEditForm = { variantId: string; priceCents: number; stock: number; stockWas: number };
+
+/** Errors are keyed `price` or `stock`; `form` means the post itself is broken (reload the page). */
+export type QuickEditFormResult =
+  | { ok: true; value: QuickEditForm }
+  | { ok: false; variantId: string; errors: { price?: string; stock?: string; form?: string } };
+
+/** One size's price and stock from the quick edit form on the products list. */
+export function parseQuickEdit(form: FormData): QuickEditFormResult {
+  const variantId = clean(form.get('id'));
+  const stockWas = parseStockQuantity(clean(form.get('stock_was')));
+  if (!variantId || stockWas === null) return { ok: false, variantId, errors: { form: 'The form is incomplete. Reload the page.' } };
+  const price = parsePriceToCents(form.get('price'));
+  const stock = parseStockQuantity(clean(form.get('stock')));
+  const errors: { price?: string; stock?: string } = {};
+  if (!price.ok) errors.price = price.error;
+  if (stock === null) errors.stock = STOCK_ERROR;
+  if (!price.ok || stock === null) return { ok: false, variantId, errors };
+  return { ok: true, value: { variantId, priceCents: price.value, stock, stockWas } };
+}
