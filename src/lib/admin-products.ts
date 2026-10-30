@@ -210,8 +210,14 @@ function newOptionKey(value: string, position: number, taken: Set<string>): stri
  * 'conflict' if the product changed since `form.expectedUpdatedAt`, and with 'stock' if a stock count the
  * admin changed is no longer the count that was shown.
  */
-export async function saveAdminProduct(db: D1Database, id: string, form: ProductForm): Promise<SaveResult> {
-  const current = await getAdminProduct(db, id);
+export async function saveAdminProduct(
+  db: D1Database,
+  id: string,
+  form: ProductForm,
+  /** The product as the caller just read it with getAdminProduct, to save a second read. */
+  loaded?: AdminProduct | null,
+): Promise<SaveResult> {
+  const current = loaded === undefined ? await getAdminProduct(db, id) : loaded;
   if (!current) return { ok: false, reason: 'missing' };
   const { product, orderedVariantIds } = current;
   if (product.updatedAt !== form.expectedUpdatedAt) return { ok: false, reason: 'conflict' };

@@ -51,7 +51,8 @@ if (Astro.request.method === 'POST') {
     if (!parsed.ok) {
       errors = parsed.errors;
     } else {
-      const result = await saveAdminProduct(env.DB, id, parsed.value);
+      // The batch itself refuses the save if the product changed after `loaded` was read.
+      const result = await saveAdminProduct(env.DB, id, parsed.value, loaded);
       if (result.ok) {
         // Purge every page that may show it: before and after a category change, and its stock.
         await purgeTags(purger, [

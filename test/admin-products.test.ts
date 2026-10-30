@@ -236,6 +236,15 @@ describe('editing a product', () => {
     expect((await load(id)).name).toBe('Друг раздел');
   });
 
+  it('refuses a save when the product changes between the page’s read and the save (the batch guard)', async () => {
+    const id = await addProduct(db, { name: 'Гюто' });
+    const snapshot = await getAdminProduct(db, id); // what the page read
+    const form = editForm(snapshot!.product, { name: 'Късно' });
+    await saveAdminProduct(db, id, editForm(snapshot!.product, { name: 'Друг раздел' })); // another tab, meanwhile
+    expect(await saveAdminProduct(db, id, form, snapshot)).toEqual({ ok: false, reason: 'conflict' });
+    expect((await load(id)).name).toBe('Друг раздел');
+  });
+
   it('refuses a stock change when an order changed the stock meanwhile, and saves nothing', async () => {
     const id = await addProduct(db, { name: 'Гюто' }, sizes(['210 мм'], 10000, 5));
     const [v] = await variantIds(db, id);
