@@ -51,3 +51,8 @@ Reason: no real orders exist, so a reset removes the risk of migrating live data
 
 **2026-10-30: Add Organization JSON-LD and set `site` once karniktochi.com is bought.**
 Reason: no site URL is configured yet (no `site` in astro.config.mjs), and the JSON-LD needs the real URL.
+
+**2026-10-30: No Git-connected builds. karniktochi-bg (unused starter Worker connected to Workers Builds) was deleted. Deploys are manual with wrangler; pushing to GitHub is only a backup. listOrders fix is not backported to main because main has no real users.**
+Reason: Workers Builds was connected to an unused "Hello world" starter Worker and never deployed the site; the
+live Worker (`karniktochi`) has always been deployed by hand with wrangler. main has no real users, so its
+orders-list bug doesn't matter there.

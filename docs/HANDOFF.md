@@ -5,13 +5,11 @@ text, and merging main into products-in-d1.
 
 ## Branch
 
-- `main`: local `b98643f`, 3 commits ahead of `origin/main` (`fa78e84`), **not pushed** (on hold: see
-  the Workers Builds questions below).
-- `products-in-d1`: pushed on 2026-10-30, `origin/products-in-d1` at `012de11`. Commits after it are local.
+- `main`: `b98643f`, pushed on 2026-10-30. Not deployed: the live site still runs `fa78e84`.
+- `products-in-d1`: pushed on 2026-10-30, including this commit.
 
-The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev. It was deployed from the
-command line with wrangler, not by Workers Builds. Workers Builds is connected to a different Worker,
-`karniktochi-bg`; see the open questions below.
+Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds nothing (DECISIONS,
+2026-10-30). The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev.
 
 ## Last 10 commits (before this one)
 
@@ -91,49 +89,36 @@ command line with wrangler, not by Workers Builds. Workers Builds is connected t
 - The slice 2 brief itself (constraints already noted: admin pages under ~10 ms CPU at 1,000 variants and
   1,000 orders, orders paginated at 50, inline quick edit replacing /admin/stock/, purgeEverything for
   bulk operations).
-- The admin is decided to be in English, but the current admin pages are in Bulgarian. Translate them in slice 2?
-- Should the `listOrders` fix go to main now? main is live with the bug.
+- Slice 2 plan: docs/slice-2-plan.md. It is a draft, not committed yet, waiting for approval and the
+  decisions listed at its end. It includes translating the admin to English.
 - Remote database: decided, not to be migrated. At launch it is reset (all tables dropped, all migrations
   applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
   the first deploy of this branch.
 - The reasons marked "not recorded" in docs/DECISIONS.md.
-- Workers Builds and the two Workers. Checked read-only on 2026-10-30 with wrangler's login and the
-  Cloudflare API.
-  - **`karniktochi`** (named in `wrangler.jsonc`) is the live site:
-    - URL: https://karniktochi.kalekcho.workers.dev (workers.dev on, version preview URLs on);
-    - last deployed 2026-10-29 13:56 UTC from the command line with wrangler, about 30 s after
-      `fa78e84` was committed;
-    - the live page shows main's `fa78e84` text: the old hero, "[Имейл]", and the Цар Самуил address;
-    - bindings: D1 `DB` = `karniktochi` (`1e85b95d…`), ASSETS, and the secret RESEND_API_KEY.
-  - **`karniktochi-bg`** is the Worker that Workers Builds is connected to:
-    - created 2026-10-26 from a dashboard template, which also deployed it twice that day; it has no
-      later versions;
-    - workers.dev and preview URLs are off, so karniktochi-bg.kalekcho.workers.dev returns 404;
-    - no bindings: no D1.
-  - The account has no custom domains and no zones, and only one D1 database: `karniktochi`.
-  - Workers Builds results on GitHub:
-    - `fa78e84` (main): production build failed;
-    - `da6caa7` and `012de11` (products-in-d1): the builds are marked as succeeded, but neither Worker got
-      a new version, so no preview URL exists.
-  - A likely cause, not confirmed: `wrangler.jsonc` says `"name": "karniktochi"` but the build is
-    connected to `karniktochi-bg`. Builds check that these names match.
-  - The build logs can't be read with this login: the Builds API returns 12004 Forbidden. To read them,
-    open dash.cloudflare.com → Workers & Pages → karniktochi-bg → Deployments → View build history →
-    the build for `fa78e84` (ID `13db4195…`).
-  - If a preview were ever uploaded from this repo, it would use the production database:
-    `wrangler.jsonc` has one D1 binding, and the account has one D1 database.
-  - Open:
-    - Read the `fa78e84` log.
-    - Decide whether Workers Builds should point at `karniktochi`, or whether `karniktochi-bg` should
-      be deleted (an unused Worker on a placeholder template). Both are dashboard changes for the user.
-    - Before any preview build points at `karniktochi`, add a separate preview D1 database.
-    - DECISIONS still says "No deploy until the admin product manager works", but main was deployed
-      manually on 2026-10-29. Does that decision still apply?
+- Deploys: resolved on 2026-10-30. There are no Git-connected builds; see the DECISIONS entry of that
+  date. What was found and done:
+  - The live site is the Worker `karniktochi`, at https://karniktochi.kalekcho.workers.dev. It is
+    deployed by hand with wrangler (last on 2026-10-29 at 13:56 UTC, from `fa78e84`) and bound to the
+    one D1 database, `karniktochi`.
+  - `karniktochi-bg` was the "Hello world" starter Worker that Workers Builds was connected to. Its
+    production build for `fa78e84` failed, and its branch builds uploaded nothing.
+  - Before deleting `karniktochi-bg`, I checked read-only that it had no bindings, routes, custom domain
+    or cron triggers. I then deleted it with `wrangler delete --name karniktochi-bg` on 2026-10-30.
+    `karniktochi` was untouched and still serves.
+  - After the deletion, a push of products-in-d1 (`cae39df`) got no Workers Builds check on GitHub.
+  - The `fa78e84` build log was never read; it was probably deleted with the Worker.
+  - The Cloudflare GitHub app may still be installed on the repo. It is harmless without a connected
+    Worker; remove it in GitHub settings if you want.
+  - Still open: DECISIONS says "No deploy until the admin product manager works", but main was deployed
+    by hand on 2026-10-29. Does that decision still apply?
+  - Still open: if a preview environment is ever added, give it its own D1 database first. There is only
+    one database today.
 - The Organization JSON-LD and Astro `site` wait for karniktochi.com.
 
 ## Known bugs and limits
 
 - main (live): the admin orders list fails with more than 100 orders. Fixed on this branch only (`0aed0fd`).
+  It is not backported, because main has no real users (DECISIONS, 2026-10-30).
 - The admin stock and orders pages render everything: about 40 ms and 26 ms CPU in the slice 1 measurement.
 - /api/stock returns every public variant (about 12 KB at 1,000 variants).
 - Purging can't be checked locally: local dev has no Workers Cache and no purge().
