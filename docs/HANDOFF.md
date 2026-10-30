@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-30, at the slice 2 stop after step 2 (English
-admin, Origin check, orders paginated at 50).
+Rewritten at the end of every task. Last updated: 2026-10-30, at the slice 2 stop after step 6 (products
+list, quick edit, archive demos).
 
 ## Branch
 
@@ -13,16 +13,16 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Last 10 commits (before this one)
 
+- `2faa103` Slice 2 step 6: quick edit of price and stock on the products list; archive all demo products; /admin/stock/ redirects; search also matches the slug
+- `374b7ee` Slice 2 step 5: admin products list: search, category and status filters, 50 per page, price range, stock, status
+- `68e885f` Slice 2 step 4: admin data layer: list/search, create, edit with size diff and conflict checks, quick edit, delete draft, archive demos; purgeAll
+- `e3824b3` Slice 2 step 3: admin input parsing: euro prices to exact cents, product form validation
+- `8661bf8` HANDOFF: slice 2 stop after step 2
 - `5c2a1b8` Slice 2 step 2: admin orders paginated at 50; npm run seed:orders / unseed:orders for local test orders
 - `6b686a6` Slice 2 step 1: admin in English; reject cross-site admin requests (Origin check)
 - `341a3ce` Slice 2 plan approved with decisions; DECISIONS: deploy policy, slice 2 choices; CLAUDE.md: products in D1
 - `4ae1e76` DECISIONS: no Git-connected builds, karniktochi-bg deleted, deploys manual; HANDOFF updated
 - `cae39df` HANDOFF: Workers Builds findings, two Workers, live site is the hand-deployed karniktochi
-- `012de11` HANDOFF: social links, new home text, merge; Workers Builds deploys on push
-- `60ff51d` Merge main into products-in-d1: footer social links, home text, .gitignore
-- `b98643f` Home: new hero text, sharpening text, trust lines, real email and phone (main, cherry-pick of `6f73235`)
-- `d3260f9` .gitignore: node_modules without trailing slash, so a symlink is ignored too (main)
-- `e0db3b8` Footer: Facebook and Instagram icon links in the contact column (main)
 
 ## Finished
 
@@ -47,14 +47,21 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 ## In progress
 
 - Slice 2, the admin product manager: plan in docs/slice-2-plan.md (approved 2026-10-30).
-  - Steps 1–2 done:
+  - Steps 1–2, checked by the user in the browser:
     - the admin is in English;
     - the middleware rejects admin POST/PUT/PATCH/DELETE requests whose Origin isn't the site
       (`src/lib/admin-origin.ts`), in dev too;
     - orders show 50 per page, keeping the status filter; a bad `?page=` goes to page 1, and a page past
       the end goes to the last page.
-  - Waiting for the user's click-through of the orders pages before step 3.
-  - Next: steps 3–6 (input parsing, the data layer, the products list, quick edit), then the next stop.
+  - Steps 3–6 done, waiting for the user's click-through:
+    - `src/lib/admin-input.ts`: euro prices to exact cents, product form and quick-edit validation;
+    - `src/lib/admin-products.ts`: list and search, create, edit with the size diff, conflict and stock
+      checks, quick edit, restore a size, delete a draft, archive demos;
+    - `/admin/products/`: search (name, brand, slug, SKU), filters, 50 per page, quick edit per size,
+      "Archive all demo products" with a confirmation;
+    - `/admin/stock/` now redirects (301) to `/admin/products/`.
+  - The "Edit" links on the list lead to pages that come in step 7; until then they are 404s.
+  - Next: steps 7–8 (the create/edit form, then preview and "View on site"), then the next stop.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -77,6 +84,20 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
   - saving a test order's status on page 2 returns to page 2 at that order, with "Saved.";
   - `?page=abc`, `?page=99` and a filtered page past the end redirect.
   - A cross-site POST and a POST without Origin get 403 (checked with curl).
+- Un-cancelling a real order (KT-00004, local), through the admin form:
+  - stock 5/1 while Confirmed, 6/2 after cancelling, and 5/1 after moving it back to Confirmed;
+  - with one size set to 0 by hand, moving it back to Confirmed was refused ("not enough stock") and
+    nothing changed.
+  - Covered by `test/stock.test.ts`: "reserves again when a cancelled order is reopened" and "refuses to
+    reopen a cancelled order if its stock was sold meanwhile".
+  - The local data was restored afterwards.
+- Products list (step 6), desktop and 390 px (no sideways scroll):
+  - quick edit save ("1 299,90" → 129 990 cents), the dot-thousands error, and the "an order changed the
+    stock" refusal (nothing saved);
+  - search "takamura" finds "Петти Такамура R2" through the slug;
+  - archive demos: link, confirmation, "Archived 1 demo product.", tried on a local product temporarily
+    marked as a demo and then restored;
+  - `/admin/stock/` returns 301 to `/admin/products/`.
 
 ## Not tested in a browser
 
@@ -88,8 +109,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Test and build results (at this commit)
 
-- products-in-d1 at `5c2a1b8`:
-  - `npm test`: 16 files, 153 tests, all passing;
+- products-in-d1 at `2faa103`:
+  - `npm test`: 18 files, 256 tests, all passing;
   - `npx astro check`: 0 errors, 0 warnings;
   - `npm run build`: completes, check-hidden passes.
 - main at `b98643f`:
@@ -127,10 +148,18 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 - main (live): the admin orders list fails with more than 100 orders. Fixed on this branch only (`0aed0fd`).
   It is not backported, because main has no real users (DECISIONS, 2026-10-30).
-- The admin stock page renders every variant: about 40 ms CPU in the slice 1 measurement. It will be
-  replaced in step 6. The orders page is now paginated but not measured yet (step 9).
+- The admin orders and products pages are paginated at 50 but not measured yet (step 9).
 - The local database has 120 test orders from `npm run seed:orders`; `npm run unseed:orders` removes them.
-  Test order KT-00074 was set to Confirmed during the browser check.
+  The user asked to keep them until the step 10 stop. Test order KT-00074 was set to Confirmed during the
+  browser check.
+- Moving an order whose size has no stock row back to an active status succeeds without taking any stock.
+  Seen locally on order 2, whose size `demo-2` was deleted by `seed:dev`. In production this can't happen
+  once slice 2 is in, because sizes with orders are archived, never deleted. Not fixed: outside the plan.
+- Admin search ignores case for Latin letters, and for Cyrillic only when typed all lower case, all upper
+  case or with words capitalised (SQLite's LIKE has no Cyrillic case folding). Latin search also matches
+  the slug.
+- Local product `belachka-misono-80-mm`: its updated_at changed during the archive-demos check (its status
+  and demo flag were restored).
 - /api/stock returns every public variant (about 12 KB at 1,000 variants).
 - Purging can't be checked locally: local dev has no Workers Cache and no purge().
 - Chrome may show a page's old copy once after an edit (stale-while-revalidate in the browser cache).
@@ -147,5 +176,6 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - Migration: `migrations/0002_products.sql`
 - Environment variables: none new. Decided but not yet added: `MEDIA_BASE_URL`, an R2 binding.
 - Endpoint: `GET /api/cart-lines`
+- Admin pages: `/admin/products/` (list, quick edit, archive demos); `/admin/stock/` is now a 301 redirect.
 - .gitignore: `backup*.sql`
 - From main: `src/config/site.ts` (social URLs); .gitignore `node_modules` without the trailing slash.
