@@ -5,7 +5,7 @@
 // per size row: v.<n>.id, v.<n>.option, v.<n>.sku, v.<n>.price, v.<n>.stock, v.<n>.stock_was, v.<n>.pos
 // and v.<n>.remove. <n> is the row's index in the form; v.<n>.pos (if valid) sets the order.
 
-import { CATEGORIES, PRODUCT_STATUSES, type Category, type ProductStatus } from './catalog';
+import { CATEGORIES, PRODUCT_STATUSES, type Category, type Product, type ProductStatus } from './catalog';
 import { parseStockQuantity } from './orders';
 
 // ---- Prices ---------------------------------------------------------------------------------------
@@ -336,4 +336,52 @@ export function parseQuickEdit(form: FormData): QuickEditFormResult {
   if (stock === null) errors.stock = STOCK_ERROR;
   if (!price.ok || stock === null) return { ok: false, variantId, errors };
   return { ok: true, value: { variantId, priceCents: price.value, stock, stockWas } };
+}
+
+// ---- Showing the form --------------------------------------------------------------------------------
+
+/** An empty form for a new product: draft, one empty size row. */
+export function emptyProductForm(): RawProductForm {
+  const fields: Record<string, string> = {};
+  for (const key of [...Object.keys(TEXT_FIELDS), ...Object.keys(NUMBER_FIELDS)]) fields[key] = '';
+  fields.category = '';
+  fields.status = 'draft';
+  return { fields, rows: [{ id: '', option: '', sku: '', price: '', stock: '0', stockWas: '', remove: false }], expectedUpdatedAt: '' };
+}
+
+/** The form for an existing product, as stored: its active sizes in order, prices as 129,90. */
+export function productToForm(p: Product): RawProductForm {
+  return {
+    fields: {
+      name: p.name,
+      brand: p.brand,
+      category: p.category,
+      type: p.type,
+      steel: p.steel,
+      blade_length_mm: p.bladeLengthMm === null ? '' : String(p.bladeLengthMm),
+      handle: p.handle,
+      weight_g: p.weightG === null ? '' : String(p.weightG),
+      summary: p.summary,
+      description: p.description,
+      series: p.series,
+      status: p.status,
+      option_name: p.optionName,
+      option_label: p.optionLabel,
+      name_en: p.nameEn ?? '',
+      summary_en: p.summaryEn ?? '',
+      description_en: p.descriptionEn ?? '',
+    },
+    rows: p.variants
+      .filter((v) => v.status === 'active')
+      .map((v) => ({
+        id: v.id,
+        option: v.optionValue,
+        sku: v.sku ?? '',
+        price: centsToInput(v.priceCents),
+        stock: String(v.stock),
+        stockWas: String(v.stock),
+        remove: false,
+      })),
+    expectedUpdatedAt: p.updatedAt,
+  };
 }

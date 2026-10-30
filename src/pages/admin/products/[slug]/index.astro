@@ -1,0 +1,155 @@
+---
+import * as workers from 'cloudflare:workers';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import ProductForm from '../../../../components/admin/ProductForm.astro';
+import { centsToInput, parseProductForm, productToForm, type FieldErrors, type RawProductForm } from '../../../../lib/admin-input';
+import {
+  deleteDraftProduct,
+  getAdminProduct,
+  productHasOrders,
+  restoreVariant,
+  saveAdminProduct,
+} from '../../../../lib/admin-products';
+import { categoryLabel, productStatusLabel } from '../../../../lib/admin-labels';
+import { productPurgeTags, purgerFrom, purgeTags, stockPurgeTags } from '../../../../lib/cache-purge';
+
+export const prerender = false;
+
+const { env } = workers;
+const id = Astro.params.slug ?? '';
+const self = `/admin/products/${id}/`;
+const loaded = await getAdminProduct(env.DB, id);
+if (!loaded) return Astro.rewrite('/404');
+const { product, orderedVariantIds } = loaded;
+const purger = purgerFrom(workers);
+
+let raw: RawProductForm = productToForm(product);
+let errors: FieldErrors = {};
+let rowNotes: Record<number, string> = {};
+let problem = '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const action = form.get('action');
+
+  if (action === 'restore') {
+    const result = await restoreVariant(env.DB, id, String(form.get('variant') ?? ''));
+    if (result.ok) {
+      await purgeTags(purger, [...productPurgeTags({ id, category: result.category }), ...stockPurgeTags(id)]);
+      return Astro.redirect(`${self}?msg=restored#sizes`, 303);
+    }
+    problem = result.error;
+  } else if (action === 'delete') {
+    const result = await deleteDraftProduct(env.DB, id);
+    // Only drafts can be deleted, and drafts are on no public page, so nothing to purge.
+    if (result.ok) return Astro.redirect(`/admin/products/?deleted=${encodeURIComponent(product.name.slice(0, 120))}`, 303);
+    problem = result.error;
+  } else if (action === 'save') {
+    const parsed = parseProductForm(form, new Set(product.variants.filter((v) => v.status === 'active').map((v) => v.id)));
+    raw = parsed.raw;
+    if (!parsed.ok) {
+      errors = parsed.errors;
+    } else {
+      const result = await saveAdminProduct(env.DB, id, parsed.value);
+      if (result.ok) {
+        // Purge every page that may show it: before and after a category change, and its stock.
+        await purgeTags(purger, [
+          ...productPurgeTags({ id, category: parsed.value.fields.category }, result.previousCategory ?? undefined),
+          ...stockPurgeTags(id),
+        ]);
+        return Astro.redirect(`${self}?msg=saved`, 303);
+      }
+      if (result.reason === 'missing') return Astro.rewrite('/404');
+      if (result.reason === 'fields') errors = result.errors;
+      if (result.reason === 'conflict') {
+        problem =
+          'This product changed while you were editing (in another tab or window). Nothing was saved. Reload to see the current version; what you typed is still below if you want to copy it.';
+      }
+      if (result.reason === 'stock') {
+        // Show each changed count; the form now carries the new count, so saving again applies the change.
+        for (const change of result.changes) {
+          const i = raw.rows.findIndex((r) => r.id === change.variantId);
+          if (i < 0) continue;
+          raw.rows[i] = { ...raw.rows[i], stockWas: String(change.now) };
+          rowNotes[i] = `An order changed the stock from ${change.shown} to ${change.now} while you were editing. Check the number you want and save again.`;
+        }
+        problem = 'Nothing was saved: orders changed the stock of some sizes while you were editing. See the sizes marked below.';
+      }
+    }
+  } else {
+    problem = 'Invalid request. Nothing was saved.';
+  }
+  Astro.response.status = Object.keys(errors).length ? 422 : 409;
+}
+
+const messages: Record<string, string> = {
+  created: 'Product created.',
+  saved: 'Saved.',
+  restored: 'Size restored. It is active again and at the end of the list.',
+};
+const msg = messages[Astro.url.searchParams.get('msg') ?? ''];
+const archived = product.variants.filter((v) => v.status === 'archived');
+const canDelete = product.status === 'draft' && !(await productHasOrders(env.DB, id));
+const confirmDelete = canDelete && Astro.url.searchParams.get('confirm') === 'delete';
+---
+<AdminLayout title={`Edit: ${product.name}`} active="products">
+  <p class="crumb"><a href="/admin/products/">← Products</a></p>
+  <h1 class="page-h1">{product.name}</h1>
+  <div class="pf-meta">
+    <span class="badge">{productStatusLabel[product.status]}</span>
+    {product.isDemo && <span class="badge badge--demo">DEMO</span>}
+    <span class="muted">{categoryLabel[product.category]}</span>
+    <span class="muted">Address: <code>/produkti/{product.id}/</code> (never changes)</span>
+  </div>
+
+  {msg && <p class="admin-msg" role="status">{msg}</p>}
+  {problem && (
+    <div class="admin-msg admin-msg--error" role="alert">
+      {problem}
+      {(problem.startsWith('This product changed') || problem.startsWith('Invalid')) && <> <a href={self}>Reload</a></>}
+    </div>
+  )}
+
+  <ProductForm raw={raw} errors={errors} ordered={orderedVariantIds} rowNotes={rowNotes} submitLabel="Save" />
+
+  {archived.length > 0 && (
+    <section class="pf-archived" id="sizes" aria-labelledby="archived-title">
+      <h2 id="archived-title">Archived sizes</h2>
+      <p class="muted">Not in the shop. They are kept because they appear in orders.</p>
+      <ul>
+        {archived.map((v) => (
+          <li>
+            <span>{v.optionValue || 'The only size'} · {centsToInput(v.priceCents)} € · stock {v.stock}{v.sku && ` · ${v.sku}`}</span>
+            <form method="post">
+              <input type="hidden" name="action" value="restore" />
+              <input type="hidden" name="variant" value={v.id} />
+              <button class="btn btn--outline btn--small" type="submit">Restore<span class="visually-hidden"> {v.optionValue}</span></button>
+            </form>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {canDelete && (
+    <section class="pf-danger" aria-labelledby="delete-title">
+      <h2 id="delete-title">Delete this draft</h2>
+      {confirmDelete ? (
+        <div class="admin-confirm" role="alertdialog" aria-labelledby="delete-confirm-title">
+          <p id="delete-confirm-title"><strong>Delete “{product.name}” for good?</strong></p>
+          <p>It and its {product.variants.length === 1 ? 'size' : `${product.variants.length} sizes`} are removed. This can’t be undone.</p>
+          <form method="post" class="admin-confirm__actions">
+            <input type="hidden" name="action" value="delete" />
+            <button class="btn btn--accent" type="submit">Yes, delete this draft</button>
+            <a href={self}>Cancel</a>
+          </form>
+        </div>
+      ) : (
+        <p>
+          It has never been ordered, so it can be deleted.
+          <a href={`${self}?confirm=delete#delete-title`}>Delete this draft…</a>
+        </p>
+      )}
+    </section>
+  )}
+</AdminLayout>

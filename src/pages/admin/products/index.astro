@@ -110,7 +110,10 @@ const listMessages: Record<string, string> = {
   invalid: 'Invalid request. Nothing was saved; reload the page and try again.',
   missing: 'That size no longer exists or was archived. Nothing was saved.',
 };
-const msg = archived !== null
+const deleted = params.get('deleted');
+const msg = deleted !== null
+  ? `Deleted the draft “${deleted}”.`
+  : archived !== null
   ? archived === '0' ? 'There were no demo products to archive.' : `Archived ${archived} demo product${archived === '1' ? '' : 's'}.`
   : listMessages[params.get('msg') ?? ''];
 const confirmArchive = params.get('confirm') === 'archive-demos';
@@ -130,7 +133,10 @@ const onSite = (p: Product) => p.status === 'published' && p.variants.length > 0
 const filtered = Boolean(q || category || status);
 ---
 <AdminLayout title="Products" active="products">
-  <h1 class="page-h1">Products</h1>
+  <div class="admin-title">
+    <h1 class="page-h1">Products</h1>
+    <a class="btn btn--accent" href="/admin/products/new/">New product</a>
+  </div>
 
   <form class="admin-filters" method="get" action="/admin/products/" role="search">
     <label>

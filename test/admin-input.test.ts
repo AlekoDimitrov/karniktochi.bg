@@ -298,3 +298,53 @@ describe('the quick edit form', () => {
     expect(quick({ id: 'v_1', price: '10', stock: '1' })).toMatchObject({ ok: false, errors: broken });
   });
 });
+
+describe('showing the form', () => {
+  it('turns a stored product into a form that parses back to the same values', async () => {
+    const { productToForm } = await import('../src/lib/admin-input');
+    const product = {
+      id: 'gyuto', name: 'Гюто', brand: 'Шибата', category: 'gotvarski', type: 'Гюто', steel: 'AS', bladeLengthMm: 210,
+      handle: '', weightG: null, summary: 'Кратко', description: 'Ред 1\nРед 2', series: '', status: 'published',
+      isDemo: false, optionName: 'Length', optionLabel: 'Дължина', nameEn: null, summaryEn: 'Short', descriptionEn: null,
+      createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-02T00:00:00.123Z',
+      variants: [
+        { id: 'v_a', productId: 'gyuto', position: 0, optionValue: '210 мм', optionKey: '210-mm', sku: 'A', priceCents: 12990, status: 'active', stock: 3 },
+        { id: 'v_x', productId: 'gyuto', position: 1, optionValue: '180 мм', optionKey: '180-mm', sku: null, priceCents: 9900, status: 'archived', stock: 0 },
+        { id: 'v_b', productId: 'gyuto', position: 2, optionValue: '240 мм', optionKey: '240-mm', sku: null, priceCents: 100000, status: 'active', stock: 0 },
+      ],
+    } as const;
+    const raw = productToForm(product as never);
+    expect(raw.rows.map((r) => [r.id, r.price, r.stock, r.stockWas])).toEqual([
+      ['v_a', '129,90', '3', '3'],
+      ['v_b', '1000,00', '0', '0'],
+    ]);
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(raw.fields)) fd.set(k, v);
+    fd.set('updated_at', raw.expectedUpdatedAt);
+    raw.rows.forEach((r, i) => {
+      fd.set(`v.${i}.id`, r.id);
+      fd.set(`v.${i}.option`, r.option);
+      fd.set(`v.${i}.sku`, r.sku);
+      fd.set(`v.${i}.price`, r.price);
+      fd.set(`v.${i}.stock`, r.stock);
+      fd.set(`v.${i}.stock_was`, r.stockWas);
+    });
+    const parsed = parseProductForm(fd, new Set(['v_a', 'v_b', 'v_x']));
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.value.fields).toMatchObject({ name: 'Гюто', bladeLengthMm: 210, weightG: null, summaryEn: 'Short', nameEn: null });
+    expect(parsed.value.variants.map((v) => [v.id, v.priceCents, v.stock])).toEqual([
+      ['v_a', 12990, 3],
+      ['v_b', 100000, 0],
+    ]);
+    expect(parsed.value.expectedUpdatedAt).toBe('2026-10-02T00:00:00.123Z');
+  });
+
+  it('starts a new product as a draft with one size row', async () => {
+    const { emptyProductForm } = await import('../src/lib/admin-input');
+    const raw = emptyProductForm();
+    expect(raw.fields.status).toBe('draft');
+    expect(raw.rows).toHaveLength(1);
+    expect(raw.expectedUpdatedAt).toBe('');
+  });
+});

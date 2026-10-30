@@ -1,0 +1,245 @@
+---
+// The product form shared by /admin/products/new/ and /admin/products/{slug}/. It renders from what was
+// typed (RawProductForm), so after an error everything is shown again as it was. Field names are the ones
+// admin-input.ts reads. Works without JavaScript; src/scripts/admin-variants.ts adds Add size, Move up/down.
+import type { FieldErrors, RawProductForm, RawVariantRow } from '../../lib/admin-input';
+import { MAX_VARIANT_ROWS, NUMBER_FIELDS, OPTION_VALUE_MAX, TEXT_FIELDS } from '../../lib/admin-input';
+import { categoryLabel, productStatusLabel } from '../../lib/admin-labels';
+import { CATEGORIES, PRODUCT_STATUSES } from '../../lib/catalog';
+
+interface Props {
+  raw: RawProductForm;
+  errors: FieldErrors;
+  /** Sizes that appear in orders: removing them archives them instead of deleting. */
+  ordered: Set<string>;
+  /** Extra messages per size row (e.g. stock changed by an order), keyed by row index. */
+  rowNotes?: Record<number, string>;
+  submitLabel: string;
+}
+const { raw, errors, ordered, rowNotes = {}, submitLabel } = Astro.props;
+const f = raw.fields;
+
+// Spare empty rows, so sizes can be added without JavaScript (the script removes them and adds on demand).
+const blank: RawVariantRow = { id: '', option: '', sku: '', price: '', stock: '', stockWas: '', remove: false };
+const spare = Math.max(0, Math.min(2, MAX_VARIANT_ROWS - raw.rows.length));
+const rows = [...raw.rows, ...Array.from({ length: spare }, () => blank)];
+
+const err = (key: string) => errors[key];
+const described = (key: string) => (errors[key] ? `${key}-error` : undefined);
+const invalid = (key: string) => (errors[key] ? 'true' : undefined);
+const max = (key: keyof typeof TEXT_FIELDS) => TEXT_FIELDS[key].max;
+const errorCount = Object.keys(errors).length;
+---
+{errorCount > 0 && (
+  <div class="admin-msg admin-msg--error" role="alert" tabindex="-1" id="form-errors">
+    Nothing was saved. Fix the {errorCount === 1 ? 'field' : `${errorCount} fields`} marked below.
+    {errors.variants && <> {errors.variants}</>}
+  </div>
+)}
+
+<form method="post" class="product-form" novalidate>
+  <input type="hidden" name="action" value="save" />
+  <input type="hidden" name="updated_at" value={raw.expectedUpdatedAt} />
+
+  <fieldset class="pf-section">
+    <legend>Basics</legend>
+    <div class="pf-field pf-field--wide">
+      <label for="f-name">Name (Bulgarian, as customers see it) <span aria-hidden="true">*</span></label>
+      <input id="f-name" name="name" value={f.name} maxlength={max('name')} required aria-invalid={invalid('name')} aria-describedby={described('name')} />
+      {err('name') && <p class="form-error" id="name-error">{err('name')}</p>}
+    </div>
+    <div class="pf-field">
+      <label for="f-brand">Brand</label>
+      <input id="f-brand" name="brand" value={f.brand} maxlength={max('brand')} aria-invalid={invalid('brand')} aria-describedby={described('brand')} />
+      {err('brand') && <p class="form-error" id="brand-error">{err('brand')}</p>}
+    </div>
+    <div class="pf-field">
+      <label for="f-category">Category <span aria-hidden="true">*</span></label>
+      <select id="f-category" name="category" aria-invalid={invalid('category')} aria-describedby={described('category')}>
+        <option value="" selected={!f.category}>Choose…</option>
+        {CATEGORIES.map((c) => <option value={c} selected={c === f.category}>{categoryLabel[c]}</option>)}
+      </select>
+      {err('category') && <p class="form-error" id="category-error">{err('category')}</p>}
+    </div>
+    <fieldset class="pf-field pf-radios" aria-describedby={described('status')}>
+      <legend>Status</legend>
+      {PRODUCT_STATUSES.map((s) => (
+        <label class="pf-radio">
+          <input type="radio" name="status" value={s} checked={s === (f.status || 'draft')} />
+          {productStatusLabel[s]}
+          <span class="muted">
+            {s === 'draft' ? '— not in the shop' : s === 'published' ? '— in the shop' : '— hidden, kept for orders'}
+          </span>
+        </label>
+      ))}
+      {err('status') && <p class="form-error" id="status-error">{err('status')}</p>}
+    </fieldset>
+  </fieldset>
+
+  <fieldset class="pf-section">
+    <legend>Details</legend>
+    {(['type', 'steel', 'handle', 'series'] as const).map((key) => (
+      <div class="pf-field">
+        <label for={`f-${key}`}>{{ type: 'Type (e.g. Гюто)', steel: 'Steel', handle: 'Handle', series: 'Series' }[key]}</label>
+        <input id={`f-${key}`} name={key} value={f[key]} maxlength={max(key)} aria-invalid={invalid(key)} aria-describedby={described(key) ?? (key === 'series' ? 'series-hint' : undefined)} />
+        {key === 'series' && <p class="muted pf-hint" id="series-hint">Products with the same series are shown to each other as “other models”.</p>}
+        {err(key) && <p class="form-error" id={`${key}-error`}>{err(key)}</p>}
+      </div>
+    ))}
+    {(Object.keys(NUMBER_FIELDS) as (keyof typeof NUMBER_FIELDS)[]).map((key) => (
+      <div class="pf-field pf-field--narrow">
+        <label for={`f-${key}`}>{key === 'blade_length_mm' ? 'Blade length (mm)' : 'Weight (g)'}</label>
+        <input id={`f-${key}`} name={key} value={f[key]} inputmode="numeric" aria-invalid={invalid(key)} aria-describedby={described(key)} />
+        {err(key) && <p class="form-error" id={`${key}-error`}>{err(key)}</p>}
+      </div>
+    ))}
+  </fieldset>
+
+  <fieldset class="pf-section">
+    <legend>Texts (Bulgarian)</legend>
+    <div class="pf-field pf-field--wide">
+      <label for="f-summary">Summary (one or two sentences under the price)</label>
+      <textarea id="f-summary" name="summary" rows="2" maxlength={max('summary')} aria-invalid={invalid('summary')} aria-describedby={described('summary')}>{f.summary}</textarea>
+      {err('summary') && <p class="form-error" id="summary-error">{err('summary')}</p>}
+    </div>
+    <div class="pf-field pf-field--wide">
+      <label for="f-description">Description (line breaks are kept)</label>
+      <textarea id="f-description" name="description" rows="6" maxlength={max('description')} aria-invalid={invalid('description')} aria-describedby={described('description')}>{f.description}</textarea>
+      {err('description') && <p class="form-error" id="description-error">{err('description')}</p>}
+    </div>
+  </fieldset>
+
+  <fieldset class="pf-section" aria-describedby={errors.variants ? 'variants-error' : undefined}>
+    <legend>Sizes, prices and stock</legend>
+    <p class="muted pf-hint">
+      A product without choices has one size with an empty value. With more than one size, fill in the option
+      name and label, and give every size a value. Prices in euros, e.g. 129,90 or 1 299,90.
+    </p>
+    <div class="pf-field">
+      <label for="f-option_name">Option name (admin, English)</label>
+      <input id="f-option_name" name="option_name" value={f.option_name} maxlength={max('option_name')} placeholder="Length" aria-invalid={invalid('option_name')} aria-describedby={described('option_name')} />
+      {err('option_name') && <p class="form-error" id="option_name-error">{err('option_name')}</p>}
+    </div>
+    <div class="pf-field">
+      <label for="f-option_label">Option label (shop, Bulgarian)</label>
+      <input id="f-option_label" name="option_label" value={f.option_label} maxlength={max('option_label')} placeholder="Дължина" aria-invalid={invalid('option_label')} aria-describedby={described('option_label')} />
+      {err('option_label') && <p class="form-error" id="option_label-error">{err('option_label')}</p>}
+    </div>
+    {errors.variants && <p class="form-error pf-field--wide" id="variants-error">{errors.variants}</p>}
+
+    <ol class="pf-sizes" data-sizes data-next-index={rows.length}>
+      {rows.map((row, n) => {
+        const k = (field: string) => `v.${n}.${field}`;
+        const isNew = !row.id;
+        return (
+          <li class="pf-size" data-size data-new={isNew ? '' : undefined}>
+            <fieldset>
+              <legend class="pf-size__legend">
+                {isNew ? (row === blank ? 'New size (leave empty if not needed)' : 'New size') : `Size: ${row.option || 'the only size'}`}
+              </legend>
+              <input type="hidden" name={k('id')} value={row.id} />
+              {!isNew && <input type="hidden" name={k('stock_was')} value={row.stockWas} />}
+              <div class="pf-size__fields">
+                <label>
+                  Value (shop)
+                  <input name={k('option')} value={row.option} maxlength={OPTION_VALUE_MAX} placeholder="210 мм" aria-invalid={invalid(k('option'))} aria-describedby={described(k('option'))} />
+                </label>
+                <label>
+                  SKU
+                  <input name={k('sku')} value={row.sku} maxlength="40" aria-invalid={invalid(k('sku'))} aria-describedby={described(k('sku'))} />
+                </label>
+                <label>
+                  Price (€)
+                  <input name={k('price')} value={row.price} inputmode="decimal" aria-invalid={invalid(k('price'))} aria-describedby={described(k('price'))} />
+                </label>
+                <label>
+                  Stock
+                  <input name={k('stock')} value={row.stock} inputmode="numeric" aria-invalid={invalid(k('stock')) ?? (rowNotes[n] ? 'true' : undefined)} aria-describedby={described(k('stock')) ?? (rowNotes[n] ? `${k('note')}` : undefined)} />
+                </label>
+                <label class="pf-size__pos" data-pos-field>
+                  Order
+                  <input name={k('pos')} value={String(n + 1)} inputmode="numeric" />
+                </label>
+              </div>
+              {['option', 'sku', 'price', 'stock'].map((field) => err(k(field)) && <p class="form-error" id={`${k(field)}-error`}>{err(k(field))}</p>)}
+              {rowNotes[n] && <p class="form-error" id={k('note')}>{rowNotes[n]}</p>}
+              <div class="pf-size__actions">
+                <span data-move hidden>
+                  <button type="button" class="btn btn--outline btn--small" data-up>Move up</button>
+                  <button type="button" class="btn btn--outline btn--small" data-down>Move down</button>
+                </span>
+                {!isNew && (
+                  <label class="pf-size__remove">
+                    <input type="checkbox" name={k('remove')} value="1" checked={row.remove} />
+                    {ordered.has(row.id)
+                      ? 'Remove this size (it has orders, so it is archived and can be restored)'
+                      : 'Remove this size (it has no orders, so it is deleted)'}
+                  </label>
+                )}
+                {isNew && <button type="button" class="btn btn--outline btn--small" data-remove-new hidden>Remove</button>}
+              </div>
+            </fieldset>
+          </li>
+        );
+      })}
+    </ol>
+    <button type="button" class="btn btn--outline" data-add-size hidden>Add size</button>
+  </fieldset>
+
+  <details class="pf-section pf-details" open={Boolean(f.name_en || f.summary_en || f.description_en || err('name_en') || err('summary_en') || err('description_en'))}>
+    <summary>English texts (optional, not shown in the shop yet)</summary>
+    <div class="pf-field pf-field--wide">
+      <label for="f-name_en">Name (English)</label>
+      <input id="f-name_en" name="name_en" value={f.name_en} maxlength={max('name_en')} aria-invalid={invalid('name_en')} aria-describedby={described('name_en')} />
+      {err('name_en') && <p class="form-error" id="name_en-error">{err('name_en')}</p>}
+    </div>
+    <div class="pf-field pf-field--wide">
+      <label for="f-summary_en">Summary (English)</label>
+      <textarea id="f-summary_en" name="summary_en" rows="2" maxlength={max('summary_en')} aria-invalid={invalid('summary_en')} aria-describedby={described('summary_en')}>{f.summary_en}</textarea>
+      {err('summary_en') && <p class="form-error" id="summary_en-error">{err('summary_en')}</p>}
+    </div>
+    <div class="pf-field pf-field--wide">
+      <label for="f-description_en">Description (English)</label>
+      <textarea id="f-description_en" name="description_en" rows="4" maxlength={max('description_en')} aria-invalid={invalid('description_en')} aria-describedby={described('description_en')}>{f.description_en}</textarea>
+      {err('description_en') && <p class="form-error" id="description_en-error">{err('description_en')}</p>}
+    </div>
+  </details>
+
+  <section class="pf-section pf-photos" aria-labelledby="photos-title">
+    <h2 id="photos-title">Photos</h2>
+    <p class="muted">Coming in slice 3. Photo upload will go here.</p>
+  </section>
+
+  <div class="pf-submit">
+    <button class="btn btn--accent" type="submit">{submitLabel}</button>
+  </div>
+
+  <template data-size-template>
+    <li class="pf-size" data-size data-new>
+      <fieldset>
+        <legend class="pf-size__legend">New size</legend>
+        <input type="hidden" data-name="id" value="" />
+        <div class="pf-size__fields">
+          <label>Value (shop)<input data-name="option" maxlength={OPTION_VALUE_MAX} placeholder="210 мм" /></label>
+          <label>SKU<input data-name="sku" maxlength="40" /></label>
+          <label>Price (€)<input data-name="price" inputmode="decimal" /></label>
+          <label>Stock<input data-name="stock" inputmode="numeric" value="0" /></label>
+          <label class="pf-size__pos" data-pos-field>Order<input data-name="pos" inputmode="numeric" /></label>
+        </div>
+        <div class="pf-size__actions">
+          <span data-move>
+            <button type="button" class="btn btn--outline btn--small" data-up>Move up</button>
+            <button type="button" class="btn btn--outline btn--small" data-down>Move down</button>
+          </span>
+          <button type="button" class="btn btn--outline btn--small" data-remove-new>Remove</button>
+        </div>
+      </fieldset>
+    </li>
+  </template>
+</form>
+
+<script>
+  import { enhanceSizes } from '../../scripts/admin-variants';
+  enhanceSizes(document.querySelector<HTMLFormElement>('.product-form'));
+  document.getElementById('form-errors')?.focus();
+</script>

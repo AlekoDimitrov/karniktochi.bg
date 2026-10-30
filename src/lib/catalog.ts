@@ -84,7 +84,8 @@ export async function uniqueSlug(db: D1Database, name: string): Promise<string> 
     .prepare(`SELECT id FROM products WHERE id = ? OR id LIKE ? ESCAPE '\\'`)
     .bind(base, `${base.replace(/[\\%_]/g, '\\$&')}-%`)
     .all<{ id: string }>();
-  const taken = new Set(rows.results.map((r) => r.id));
+  // "new" is the admin's /admin/products/new/ page, so no product may take it.
+  const taken = new Set(['new', ...rows.results.map((r) => r.id)]);
   if (!taken.has(base)) return base;
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`;
 }

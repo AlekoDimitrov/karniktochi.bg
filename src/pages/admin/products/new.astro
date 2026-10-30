@@ -1,0 +1,43 @@
+---
+import * as workers from 'cloudflare:workers';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import ProductForm from '../../../components/admin/ProductForm.astro';
+import { emptyProductForm, parseProductForm, type FieldErrors, type RawProductForm } from '../../../lib/admin-input';
+import { createAdminProduct } from '../../../lib/admin-products';
+import { productPurgeTags, purgerFrom, purgeTags, stockPurgeTags } from '../../../lib/cache-purge';
+
+export const prerender = false;
+
+const { env } = workers;
+let raw: RawProductForm = emptyProductForm();
+let errors: FieldErrors = {};
+
+if (Astro.request.method === 'POST') {
+  // No existing sizes: any posted size id is refused.
+  const parsed = parseProductForm(await Astro.request.formData());
+  raw = parsed.raw;
+  if (!parsed.ok) {
+    errors = parsed.errors;
+  } else {
+    const result = await createAdminProduct(env.DB, parsed.value);
+    if (result.ok) {
+      // A new draft isn't on any page yet; a product created as published is.
+      if (parsed.value.fields.status === 'published') {
+        await purgeTags(purgerFrom(workers), [
+          ...productPurgeTags({ id: result.id, category: parsed.value.fields.category }),
+          ...stockPurgeTags(result.id),
+        ]);
+      }
+      return Astro.redirect(`/admin/products/${result.id}/?msg=created`, 303);
+    }
+    errors = result.reason === 'fields' ? result.errors : { variants: 'Not saved. Try again.' };
+  }
+  Astro.response.status = 422;
+}
+---
+<AdminLayout title="New product" active="products">
+  <p class="crumb"><a href="/admin/products/">← Products</a></p>
+  <h1 class="page-h1">New product</h1>
+  <p class="muted">The address (slug) is made from the name when you first save, and never changes after that.</p>
+  <ProductForm raw={raw} errors={errors} ordered={new Set()} submitLabel="Create product" />
+</AdminLayout>

@@ -53,6 +53,12 @@ describe('slugs', () => {
     expect(await uniqueSlug(db, '!!!')).toBe('produkt');
   });
 
+  it('never gives a product the slug "new" (the admin’s new product page)', async () => {
+    expect(await uniqueSlug(db, 'New')).toBe('new-2');
+    expect(await addProduct(db, { name: 'NEW' })).toBe('new-2');
+    expect(await uniqueSlug(db, 'New edition')).toBe('new-edition');
+  });
+
   it('gives option values URL keys that are unique within the product', () => {
     expect(optionKeys(['210 мм', '240 мм', '210 мм', ''])).toEqual(['210-mm', '240-mm', '210-mm-2', '4']);
   });
