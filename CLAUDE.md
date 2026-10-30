@@ -7,12 +7,12 @@ See also @AGENTS.md (dev server usage and Astro docs links).
 ## Stack
 
 - **Astro** (TypeScript, `astro/tsconfigs/strict`) deployed to **Cloudflare Workers** via `@astrojs/cloudflare`. Worker config lives in `wrangler.jsonc`.
-- **Products** are Markdown/JSON files in the repo (Astro content collections), not a database or CMS.
+- **Products** live in **D1** (`products` and `variants` tables, `migrations/0002_products.sql`; SQL in `src/lib/catalog.ts`). Each product has one option dimension and one or more variants; stock, cart lines and order items are keyed by variant id. They are managed in /admin, not in repo files.
 - **No payment processor.** Bulgaria only. Cash on delivery (default) or bank transfer (switched by `ENABLE_BANK_TRANSFER` in `wrangler.jsonc`). Every order is confirmed by phone before shipping.
 - **Prices are in EUR.** Store amounts as integer cents; format for display only (`formatPrice()`).
-- **Cart** is client-side (`src/scripts/cart.ts`, localStorage). The server recomputes all prices from the product files.
+- **Cart** is client-side (`src/scripts/cart.ts`, localStorage). The server recomputes all prices from D1.
 - **Orders** live in **Cloudflare D1** (binding `DB`, schema in `migrations/`). `src/lib/orders.ts` holds the SQL; `createOrder()` in `src/lib/checkout.ts` is the single entry point for placing an order (add rate limiting/captcha there).
-- **Stock**: the D1 `stock` table is the live count once a product has been ordered; the product file's `stock` is only the starting value. Orders reserve stock; `cancelled`/`refused` release it. The CHECK constraints make overselling and stale status changes roll back.
+- **Stock**: the D1 `stock` table holds the live count per variant. Orders reserve stock; `cancelled`/`refused` release it. The CHECK constraints make overselling and stale status changes roll back.
 - **Emails** go through Resend (`src/lib/email.ts`, secret `RESEND_API_KEY`).
 - **/admin** is behind Cloudflare Access; `src/middleware.ts` also verifies the Access JWT (skipped in `astro dev`).
 

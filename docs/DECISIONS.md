@@ -39,6 +39,7 @@ asset requests also count against the 100,000-requests-a-day limit (docs/slice-1
 
 **2026-10-29: No deploy until the admin product manager works.**
 Reason: not recorded.
+*Superseded on 2026-10-30 by the production/staging deploy entry below.*
 
 **2026-10-29: Prices are stored as integer euro cents and formatted only for display.**
 Reason: whole-number cents avoid rounding errors in totals (see CLAUDE.md: formatPrice()).
@@ -56,3 +57,18 @@ Reason: no site URL is configured yet (no `site` in astro.config.mjs), and the J
 Reason: Workers Builds was connected to an unused "Hello world" starter Worker and never deployed the site; the
 live Worker (`karniktochi`) has always been deployed by hand with wrangler. main has no real users, so its
 orders-list bug doesn't matter there.
+
+**2026-10-30: Production deploys happen only from products-in-d1, after slice 3 (photos). Staging deploys are allowed for anything that cannot be tested locally.**
+Replaces the 2026-10-29 entry "No deploy until the admin product manager works". Reason: not recorded.
+
+**2026-10-30: Slice 2 choices (see docs/slice-2-plan.md).**
+- The only bulk action is "Archive all demo products".
+- A draft that was never ordered can be deleted, after a confirmation. Everything else is archived.
+- A size's URL key (`?v=`) is set when the size is created and never changes, even if the size is renamed.
+- Prices are typed in euros with at most 2 decimals, a dot or comma as the decimal mark, and spaces as
+  thousands separators (1 299,90). Dots as thousands separators (1.299,90 or 1.299) are rejected with a
+  message showing the correct format.
+- Sizes are reordered with up/down buttons.
+- The demo flag is shown as a read-only badge in the admin, not editable.
+- Slice 2 speed measurements go in docs/slice-2-report.md.
+Reason: the user's answers to the plan's open decisions.
