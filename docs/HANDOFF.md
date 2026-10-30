@@ -5,16 +5,13 @@ text, and merging main into products-in-d1.
 
 ## Branch
 
-Nothing from 2026-10-30 is pushed yet; the user pushes after approving.
+- `main`: local `b98643f`, 3 commits ahead of `origin/main` (`fa78e84`), **not pushed** (on hold: see
+  the Workers Builds questions below).
+- `products-in-d1`: pushed on 2026-10-30, `origin/products-in-d1` at `012de11`. Commits after it are local.
 
-- `main`: local `b98643f`, 3 commits ahead of `origin/main` (`fa78e84`).
-- `products-in-d1`: local, ahead of `origin/products-in-d1` (`376f463`) by `02f6d0a` onwards, including this commit.
-
-**Pushing deploys.** Cloudflare Workers Builds is connected to the GitHub repo (Worker `karniktochi-bg`).
-GitHub shows a "Workers Builds: karniktochi-bg" check on `fa78e84` (main, production build) and on
-`da6caa7` (a preview build for products-in-d1). So a push to main starts a production build and deploy,
-and a push to products-in-d1 makes a preview build. The `fa78e84` build **failed** (cause not looked at:
-see the build log in the Cloudflare dashboard), so the live site may be older than `fa78e84`.
+The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev. It was deployed from the
+command line with wrangler, not by Workers Builds. Workers Builds is connected to a different Worker,
+`karniktochi-bg`; see the open questions below.
 
 ## Last 10 commits (before this one)
 
@@ -100,11 +97,38 @@ see the build log in the Cloudflare dashboard), so the live site may be older th
   applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
   the first deploy of this branch.
 - The reasons marked "not recorded" in docs/DECISIONS.md.
-- Pushing main deploys it through Workers Builds. DECISIONS says "No deploy until the admin product manager
-  works", but main has been deployed before. Is pushing main still allowed?
-- Why did the Workers Builds production build for `fa78e84` fail, and what is live now?
-- The Workers Builds Worker is `karniktochi-bg`, but `wrangler.jsonc` names the Worker `karniktochi`. Are these
-  the same Worker?
+- Workers Builds and the two Workers. Checked read-only on 2026-10-30 with wrangler's login and the
+  Cloudflare API.
+  - **`karniktochi`** (named in `wrangler.jsonc`) is the live site:
+    - URL: https://karniktochi.kalekcho.workers.dev (workers.dev on, version preview URLs on);
+    - last deployed 2026-10-29 13:56 UTC from the command line with wrangler, about 30 s after
+      `fa78e84` was committed;
+    - the live page shows main's `fa78e84` text: the old hero, "[Имейл]", and the Цар Самуил address;
+    - bindings: D1 `DB` = `karniktochi` (`1e85b95d…`), ASSETS, and the secret RESEND_API_KEY.
+  - **`karniktochi-bg`** is the Worker that Workers Builds is connected to:
+    - created 2026-10-26 from a dashboard template, which also deployed it twice that day; it has no
+      later versions;
+    - workers.dev and preview URLs are off, so karniktochi-bg.kalekcho.workers.dev returns 404;
+    - no bindings: no D1.
+  - The account has no custom domains and no zones, and only one D1 database: `karniktochi`.
+  - Workers Builds results on GitHub:
+    - `fa78e84` (main): production build failed;
+    - `da6caa7` and `012de11` (products-in-d1): the builds are marked as succeeded, but neither Worker got
+      a new version, so no preview URL exists.
+  - A likely cause, not confirmed: `wrangler.jsonc` says `"name": "karniktochi"` but the build is
+    connected to `karniktochi-bg`. Builds check that these names match.
+  - The build logs can't be read with this login: the Builds API returns 12004 Forbidden. To read them,
+    open dash.cloudflare.com → Workers & Pages → karniktochi-bg → Deployments → View build history →
+    the build for `fa78e84` (ID `13db4195…`).
+  - If a preview were ever uploaded from this repo, it would use the production database:
+    `wrangler.jsonc` has one D1 binding, and the account has one D1 database.
+  - Open:
+    - Read the `fa78e84` log.
+    - Decide whether Workers Builds should point at `karniktochi`, or whether `karniktochi-bg` should
+      be deleted (an unused Worker on a placeholder template). Both are dashboard changes for the user.
+    - Before any preview build points at `karniktochi`, add a separate preview D1 database.
+    - DECISIONS still says "No deploy until the admin product manager works", but main was deployed
+      manually on 2026-10-29. Does that decision still apply?
 - The Organization JSON-LD and Astro `site` wait for karniktochi.com.
 
 ## Known bugs and limits
