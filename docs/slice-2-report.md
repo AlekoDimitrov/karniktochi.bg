@@ -106,8 +106,32 @@ Measured to know whether customer-facing pages stay under 10 ms. Same build, dat
   - The order code (`createOrder`, `orderableVariants`, `insertOrder`) is unchanged since slice 1.
   - The per-function profile has no single hot spot: D1 result decoding (`toJson`, `text`) and per-query
     tracing (`setAttributes`, `enterSpan`) are the largest parts.
-  - Not optimised; reported to the user (2026-10-30), and the cause is not yet known.
+  - Not optimised; reported to the user (2026-10-30).
 - **Borderline:** the thank-you page, at 9.5 / 10.3 ms (slice 1: 7.9 / 7.5).
+
+### Checkout submit against the number of orders
+
+Measured only, no code changes. The same build and products/sizes were used, with three fresh throwaway
+databases holding 0, 1,000 and 5,000 existing orders (`seed-perf.mjs` with the order count changed in a
+scratch copy). Emails were built but not sent (no Resend key). Each run was 50 order POSTs after one warm-up,
+and the server was restarted for each database.
+
+| Existing orders | JS+GC | All busy | Wall (median) |
+|---|---|---|---|
+| 0 | 10.0 / 9.3 | 11.2 / 10.7 | 17.0 / 16.2 |
+| 1,000 | 10.5 / 9.0 | 11.7 / 10.8 | 17.2 / 16.3 |
+| 5,000 | 10.6 / 9.5 | 11.7 / 10.9 | 17.3 / 16.2 |
+
+- **Flat with the order count:** within about 1 ms across 0, 1,000 and 5,000 orders, which is within run-to-run
+  noise.
+- **The ~15 ms figure didn't come back.** The whole storefront set was rerun on the 1,000-order database, so
+  the order POST came after all the page requests as before. It measured 9.7 ms, and the thank-you page
+  6.0 ms. The first measurement used a different scratch build, with a stubbed `fetch` and a dummy Resend
+  key, so the 15 ms was most likely that setup or machine load rather than the order code. This wasn't proven.
+
+**Decision (2026-10-30, docs/DECISIONS.md): accepted.** The checkout submit is ~15 ms locally at worst
+(9–10.6 ms on the rerun), flat with the order count, and accepted under Workers Paid. Real checkout CPU is
+to be measured on Cloudflare (HANDOFF, staging checklist).
 
 ## Not measured
 

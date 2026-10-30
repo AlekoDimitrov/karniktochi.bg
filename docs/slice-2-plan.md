@@ -1,6 +1,6 @@
 # Slice 2 plan: admin product manager
 
-Status: **approved 2026-10-30** with the decisions at the end of this file. Written 2026-10-30 on
+Status: **done 2026-10-30** (steps 1–10; results in docs/slice-2-report.md). Approved 2026-10-30 with the decisions at the end of this file. Written 2026-10-30 on
 `products-in-d1`.
 
 ## What slice 2 delivers

@@ -14,7 +14,8 @@ See also @AGENTS.md (dev server usage and Astro docs links).
 - **Orders** live in **Cloudflare D1** (binding `DB`, schema in `migrations/`). `src/lib/orders.ts` holds the SQL; `createOrder()` in `src/lib/checkout.ts` is the single entry point for placing an order (add rate limiting/captcha there).
 - **Stock**: the D1 `stock` table holds the live count per variant. Orders reserve stock; `cancelled`/`refused` release it. The CHECK constraints make overselling and stale status changes roll back.
 - **Emails** go through Resend (`src/lib/email.ts`, secret `RESEND_API_KEY`).
-- **/admin** is behind Cloudflare Access; `src/middleware.ts` also verifies the Access JWT (skipped in `astro dev`).
+- **/admin** is behind Cloudflare Access; `src/middleware.ts` also verifies the Access JWT (skipped in `astro dev`) and refuses non-GET admin requests from another origin (`src/lib/admin-origin.ts`). The admin is in English; everything customers see is Bulgarian. Product SQL for the admin is in `src/lib/admin-products.ts`, form parsing in `src/lib/admin-input.ts`.
+- **Admin CPU**: admin requests and the checkout submit may exceed 10 ms CPU, so Workers Paid must be active before the admin runs on Cloudflare (docs/DECISIONS.md, 2026-10-30).
 
 ## Commands
 

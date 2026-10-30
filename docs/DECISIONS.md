@@ -75,3 +75,6 @@ Reason: the user's answers to the plan's open decisions.
 
 **2026-10-30: Admin requests may exceed 10 ms CPU (measured up to ~16 ms locally). The admin is single-user and runs only on Workers Paid (default 30 s CPU limit). Therefore Workers Paid must be active before the admin runs on Cloudflare, including staging.**
 Reason: as stated. Measurements in docs/slice-2-report.md (the products list at 11–15 ms and the product save at 12.6–15.9 ms JS+GC, with 500 products, 1,000 sizes and 1,000 orders).
+
+**2026-10-30: Checkout submit (POST /api/orders) ~15 ms CPU locally, flat with order count, accepted under Workers Paid.**
+Reason: the user accepted it after a check that its CPU doesn't grow with the orders already stored. It was flat at 0, 1,000 and 5,000 orders (9.0–10.6 ms JS+GC on that rerun; the first measurement was 14.4–15.2 ms). Real checkout CPU is to be measured on Cloudflare during staging. Details in docs/slice-2-report.md.

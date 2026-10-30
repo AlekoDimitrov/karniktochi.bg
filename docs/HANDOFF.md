@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-30, stopped before step 10: the checkout submit
-measured over 10 ms CPU.
+Rewritten at the end of every task. Last updated: 2026-10-30, slice 2 finished (step 10 done). Next: the
+open list below, then slice 3 (photos).
 
 ## Branch
 
@@ -13,6 +13,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Last 10 commits (before this one)
 
+- `ab83564` Slice 2: admin CPU over 10 ms accepted (Workers Paid required, also for staging); storefront measured: checkout submit at ~15 ms; profile.mjs measures admin or storefront
+- `4f8e9cd` HANDOFF: slice 2 stop after step 9, decision needed on the admin speed target
 - `e93b471` Slice 2 step 9: admin speed measured (docs/slice-2-report.md); Sofia dates without Intl time zones; one read per product save; seed-perf and profile-admin scripts
 - `3068fa9` HANDOFF: slice 2 stop after step 8
 - `b0e635e` Slice 2 step 8: admin preview of any product (draft banner, cart off) and View on site links; product page body shared as ProductView
@@ -20,8 +22,6 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - `1b387e8` HANDOFF: slice 2 stop after step 6
 - `2faa103` Slice 2 step 6: quick edit of price and stock on the products list; archive all demo products; /admin/stock/ redirects; search also matches the slug
 - `374b7ee` Slice 2 step 5: admin products list: search, category and status filters, 50 per page, price range, stock, status
-- `68e885f` Slice 2 step 4: admin data layer: list/search, create, edit with size diff and conflict checks, quick edit, delete draft, archive demos; purgeAll
-- `e3824b3` Slice 2 step 3: admin input parsing: euro prices to exact cents, product form validation
 
 ## Finished
 
@@ -43,9 +43,7 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - The Organization JSON-LD is not added: there is no site URL yet. See the 2026-10-30 entry in
   docs/DECISIONS.md.
 
-## In progress
-
-- Slice 2, the admin product manager: plan in docs/slice-2-plan.md (approved 2026-10-30).
+- Slice 2, the admin product manager: plan in docs/slice-2-plan.md (approved 2026-10-30, all 10 steps done).
   - Steps 1–2, checked by the user in the browser:
     - the admin is in English;
     - the middleware rejects admin POST/PUT/PATCH/DELETE requests whose Origin isn't the site
@@ -78,10 +76,17 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
     - **over the ~10 ms target:** the products list at 11–15 ms, and the product save at 12.6–15.9 ms.
   - The admin overage was accepted by the user (DECISIONS, 2026-10-30): Workers Paid must be active
     before the admin runs on Cloudflare, including staging.
-  - Storefront measured with the same data (docs/slice-2-report.md): every page is under 10 ms, but **the
-    checkout submit, POST /api/orders, takes about 15 ms** (9.8 ms in slice 1). Stopped there, as
-    instructed, without optimising.
-  - Not done yet: step 10 (docs), `npm run unseed:orders`, and the final stop.
+  - Storefront measured with the same data (docs/slice-2-report.md): every page is under 10 ms. The
+    checkout submit, POST /api/orders, measured 14.4–15.2 ms at first and 9.0–10.6 ms on the rerun. It is
+    flat with the number of stored orders (0, 1,000 and 5,000 orders measured). Accepted under Workers
+    Paid (DECISIONS, 2026-10-30); real checkout CPU is to be measured on Cloudflare.
+  - Step 10: docs (CLAUDE.md admin lines, DECISIONS, report, plan status, this file). `npm run
+    unseed:orders` removed the 120 test orders; the local database has its 4 own orders and no perf data
+    (that only ever lived in throwaway databases).
+
+## In progress
+
+- Nothing. Slice 3 (photos) is next, after the open list below.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -152,7 +157,7 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Test and build results (at this commit)
 
-- products-in-d1 at `e93b471`:
+- products-in-d1 at this commit (docs only since `ab83564`):
   - `npm test`: 19 files, 265 tests, all passing;
   - `npx astro check`: 0 errors, 0 warnings;
   - `npm run build`: completes, check-hidden passes.
@@ -163,14 +168,40 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Open questions
 
-- **Checkout submit over 10 ms (open, 2026-10-30):** POST /api/orders takes 14.4–15.2 ms JS+GC with the
-  slice 2 perf data, with or without building the emails. Slice 1 measured 9.8 ms. The order code is
-  unchanged since slice 1, and the cause is not known yet. Waiting for the user: investigate, or accept it
-  under the Workers Paid requirement.
+- **Open before slice 3:**
+  1. **Staging database.** There is one D1 database, `karniktochi`, which the live Worker uses. A staging
+     deploy of this branch needs `migrations/0002_products.sql` applied to some remote database. Decide
+     between a separate staging D1 database (DECISIONS already says a preview environment gets its own
+     first) and resetting the shared one (DECISIONS, 2026-10-29 reset entry). I haven't touched the remote
+     database.
+  2. **Workers Paid** must be active before any staging deploy (DECISIONS, 2026-10-30).
+  3. **Slice 3 setup:** R2 bucket and `MEDIA_BASE_URL` are decided but not configured. The slice 3 brief
+     isn't written yet.
+  4. **Checkout CPU:** why the first local measurement was ~15 ms and the rerun ~10 ms is not proven.
+     Staging gives the real figure (checklist item 7).
+  5. Small items, none blocking:
+     - an order whose size has no stock row can be reopened without taking stock (Known bugs);
+     - Cyrillic search case folding (Known bugs);
+     - footer social links not rechecked in a browser on this branch; the 4 px sideways scroll at 390 px
+       on main;
+     - keyboard-only and screen-reader checks of the new admin pages;
+     - the reasons marked "not recorded" in docs/DECISIONS.md.
 
-- **Staging checklist** (things only Cloudflare can show):
-  - Workers Paid must be active before the admin runs on Cloudflare, including staging (DECISIONS,
-    2026-10-30).
+- **Staging checklist** (things only Cloudflare can show), in order:
+  1. Workers Paid must be active before the admin runs on Cloudflare, including staging (DECISIONS,
+     2026-10-30).
+  2. A remote D1 database for staging with migrations 0001–0002 applied (open item 1), and a deploy of
+     products-in-d1 by hand with wrangler, never from main.
+  3. `X-Robots-Tag: noindex, nofollow` present on the staging address.
+  4. Cloudflare Access on /admin: without a login you get the Access page; with one, the middleware
+     accepts the JWT; a cross-site admin POST still gets 403.
+  5. Workers Cache: a second request to home, listing, category and a product page is a cache hit; after
+     a product save, a quick edit, publishing a draft and "Archive all demo products", the affected pages
+     show the change on the next request (tag purges and purgeEverything).
+  6. Real email through Resend: a test order sends the customer and shop emails.
+  7. Measure real checkout CPU on Cloudflare (POST /api/orders), plus the admin products list and product
+     save, from Workers Logs or the dashboard, and compare with docs/slice-2-report.md.
+  8. A real phone: product page, cart, checkout and the admin products list.
 
 - Remote database: decided, not to be migrated. At launch it is reset (all tables dropped, all migrations
   applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
@@ -200,9 +231,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 - main (live): the admin orders list fails with more than 100 orders. Fixed on this branch only (`0aed0fd`).
   It is not backported, because main has no real users (DECISIONS, 2026-10-30).
-- The local database has 120 test orders from `npm run seed:orders`; `npm run unseed:orders` removes them.
-  The user asked to keep them until the step 10 stop. Test order KT-00074 was set to Confirmed during the
-  browser check.
+- The 120 local test orders were removed with `npm run unseed:orders` at the step 10 stop; `npm run
+  seed:orders` brings them back if needed.
 - Moving an order whose size has no stock row back to an active status succeeds without taking any stock.
   Seen locally on order 2, whose size `demo-2` was deleted by `seed:dev`. In production this can't happen
   once slice 2 is in, because sizes with orders are archived, never deleted. Not fixed: outside the plan.
