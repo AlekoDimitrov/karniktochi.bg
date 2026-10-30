@@ -91,7 +91,7 @@ export async function uniqueSlug(db: D1Database, name: string): Promise<string> 
 
 // ---- Reading --------------------------------------------------------------------------------------
 
-type ProductRow = {
+export type ProductRow = {
   id: string;
   name: string;
   brand: string;
@@ -115,7 +115,7 @@ type ProductRow = {
   updated_at: string;
 };
 
-type VariantRow = {
+export type VariantRow = {
   id: string;
   product_id: string;
   position: number;
@@ -165,7 +165,7 @@ const toProduct = (r: ProductRow, variants: Variant[]): Product => ({
 });
 
 // Stock is the stock row's count; a variant without one has none.
-const VARIANT_COLUMNS = 'v.*, COALESCE(s.quantity, 0) AS stock';
+export const VARIANT_COLUMNS = 'v.*, COALESCE(s.quantity, 0) AS stock';
 const PUBLIC_PRODUCT = `p.status = 'published' AND (?1 = 1 OR p.is_demo = 0)`;
 
 /** Published products with their active variants, newest first. */
@@ -357,7 +357,7 @@ export async function listAllProducts(db: D1Database): Promise<Product[]> {
   return assemble(products.results as ProductRow[], variants.results as VariantRow[]);
 }
 
-function assemble(products: ProductRow[], variants: VariantRow[]): Product[] {
+export function assemble(products: ProductRow[], variants: VariantRow[]): Product[] {
   const byProduct = new Map<string, Variant[]>();
   for (const v of variants) {
     const list = byProduct.get(v.product_id) ?? [];

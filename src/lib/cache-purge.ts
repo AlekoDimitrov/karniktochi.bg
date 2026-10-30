@@ -2,7 +2,17 @@
 // Callers pass `cache` from 'cloudflare:workers'; tests pass a fake.
 import { tags } from './cache-policy';
 
-type Purger = { purge(options: { tags: string[] }): Promise<{ success: boolean; errors: { code: number; message: string }[] }> };
+type PurgeResult = { success: boolean; errors: { code: number; message: string }[] };
+export type Purger = { purge(options: { tags: string[] } | { purgeEverything: true }): Promise<PurgeResult> };
+
+/**
+ * The Workers Cache purger from the 'cloudflare:workers' module, or undefined where it has no purge()
+ * (local wrangler dev and astro dev): saving then just skips purging.
+ */
+export function purgerFrom(workers: { cache?: unknown }): Purger | undefined {
+  const cache = workers.cache as { purge?: unknown } | undefined;
+  return typeof cache?.purge === 'function' ? (cache as Purger) : undefined;
+}
 
 /**
  * Tags to purge when a product is saved: its own page and every product page that shows it, the home page,
@@ -23,13 +33,22 @@ export const stockPurgeTags = (productId: string) => [tags.stock, tags.product(p
  * on their own within max-age + stale-while-revalidate. Returns whether Cloudflare accepted the purge.
  */
 export async function purgeTags(purger: Purger | undefined, values: string[]): Promise<boolean> {
+  return runPurge(purger, { tags: values });
+}
+
+/** Purges everything in Workers Cache with one call, for bulk actions. Logs and never throws, like purgeTags. */
+export async function purgeAll(purger: Purger | undefined): Promise<boolean> {
+  return runPurge(purger, { purgeEverything: true });
+}
+
+async function runPurge(purger: Purger | undefined, options: { tags: string[] } | { purgeEverything: true }) {
   if (!purger) return false;
   try {
-    const result = await purger.purge({ tags: values });
-    if (!result.success) console.error('Cache purge rejected:', values, result.errors);
+    const result = await purger.purge(options);
+    if (!result.success) console.error('Cache purge rejected:', options, result.errors);
     return result.success;
   } catch (e) {
-    console.error('Cache purge failed:', values, e);
+    console.error('Cache purge failed:', options, e);
     return false;
   }
 }

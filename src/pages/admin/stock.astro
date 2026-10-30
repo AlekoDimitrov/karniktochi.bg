@@ -2,15 +2,13 @@
 import * as workers from 'cloudflare:workers';
 import AdminLayout from '../../layouts/AdminLayout.astro';
 import { listAllProducts, optionText, variantProductId } from '../../lib/catalog';
-import { purgeTags, stockPurgeTags } from '../../lib/cache-purge';
+import { purgerFrom, purgeTags, stockPurgeTags } from '../../lib/cache-purge';
 import { getStockLevels, MAX_STOCK, parseStockQuantity, setStock } from '../../lib/orders';
 
 export const prerender = false;
 
 const { env } = workers;
-// Workers Cache's purge API. Local wrangler dev / astro dev export a `cache` without purge(); there (and in
-// any runtime without it) saving just skips purging.
-const purger = typeof (workers as { cache?: { purge?: unknown } }).cache?.purge === 'function' ? workers.cache : undefined;
+const purger = purgerFrom(workers);
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();

@@ -142,6 +142,8 @@ export type ProductForm = {
   fields: ProductFields;
   /** The sizes to keep, in their new order. */
   variants: VariantForm[];
+  /** For each of `variants`, its row in the form (for errors found later, such as a SKU used elsewhere). */
+  variantRows: number[];
   /** Ids of existing sizes marked for removal (archived if ordered, else deleted). */
   removed: string[];
   /** updated_at of the product when the form was opened; empty for a new product. */
@@ -306,6 +308,7 @@ export function parseProductForm(form: FormData, existingIds: ReadonlySet<string
         descriptionEn: f.description_en || null,
       },
       variants,
+      variantRows: variants.map((v) => rowOf.get(v)!),
       removed,
       expectedUpdatedAt: raw.expectedUpdatedAt,
     },
