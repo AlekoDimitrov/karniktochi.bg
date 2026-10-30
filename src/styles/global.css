@@ -456,6 +456,11 @@ input[aria-invalid='true'] { border-color: #b3261e; }
 .pf-archived li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; overflow-wrap: anywhere; }
 .pf-danger { border-color: #b3261e; }
 .pf-danger a { font-weight: 600; }
+.pf-links { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-bottom: 8px; }
+.pf-links a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.preview-banner { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 24px; padding: 10px var(--pad); background: var(--accent); color: var(--ink); }
+.preview-banner a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; }
+.preview-note { padding-top: 16px; font-weight: 500; }
 
 /* Bubble pause button */
 .bubble-wrap { position: relative; }

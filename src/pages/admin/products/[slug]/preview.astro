@@ -1,0 +1,37 @@
+---
+// The storefront product page for a product in any status, including drafts. It is under /admin, so it is
+// behind Cloudflare Access and never cached (see middleware.ts); customers can't reach it.
+import Layout from '../../../../layouts/Layout.astro';
+import ProductView from '../../../../components/ProductView.astro';
+import { env } from 'cloudflare:workers';
+import { getProductPage } from '../../../../lib/catalog';
+import { visibility } from '../../../../lib/products';
+
+export const prerender = false;
+
+const id = Astro.params.slug ?? '';
+const data = await getProductPage(env.DB, id, visibility, { anyStatus: true });
+if (!data) return Astro.rewrite('/404');
+const p = data.product;
+const isPublic = p.status === 'published' && p.variants.length > 0 && (visibility.includeDemo || !p.isDemo);
+const banner = isPublic
+  ? 'Preview — this product is live on the site.'
+  : p.status === 'published'
+    ? 'Preview — published, but not visible to customers (no active sizes, or a demo product after launch).'
+    : p.status === 'draft'
+      ? 'Preview — draft, not visible to customers.'
+      : 'Preview — archived, not visible to customers.';
+---
+<Layout title={`Preview: ${p.name}`} description={p.summary}>
+  <div class="preview-banner" role="status" lang="en">
+    <strong>{banner}</strong>
+    <span>
+      <a href={`/admin/products/${p.id}/`}>Back to editing</a>
+      {isPublic && <> · <a href={`/produkti/${p.id}/`}>View on site</a></>}
+    </span>
+  </div>
+  {p.variants.length === 0 && (
+    <p class="container preview-note" lang="en">This product has no active sizes, so it has no price and can’t be ordered.</p>
+  )}
+  <ProductView data={data} preview />
+</Layout>

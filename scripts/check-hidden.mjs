@@ -22,7 +22,10 @@ function expectHidden(file, html, attrs) {
 // These pages are rendered per request, so check their templates.
 const pages = [
   ['src/pages/kolichka/index.astro', ['data-cart-error', 'data-cart-empty', 'data-cart-summary', 'data-cart-fixed', 'data-cart-blocked', 'data-warn', 'data-option']],
-  ['src/pages/produkti/[slug].astro', ['data-added', 'data-max']],
+  // The product page body, shared by /produkti/{slug}/ and the admin preview.
+  ['src/components/ProductView.astro', ['data-added', 'data-max']],
+  // Shown by src/scripts/admin-variants.ts; without JavaScript the spare rows are used instead.
+  ['src/components/admin/ProductForm.astro', ['data-add-size']],
   ['src/pages/porachka/index.astro', ['data-empty', 'data-checkout', 'data-form-error']],
 ];
 for (const [file, attrs] of pages) expectHidden(file, readFileSync(file, 'utf8'), attrs);

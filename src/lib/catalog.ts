@@ -260,8 +260,15 @@ export type ProductPageData = { product: Product; otherModels: Product[]; relate
 /**
  * Everything a product page shows: the product with its active variants, the other models in its series,
  * and up to RELATED_LIMIT related products from its category (outside its series). Null if it isn't public.
+ * With `anyStatus` (the admin preview) the product itself may be a draft, archived or without active
+ * variants; the other models and related products are still public ones only.
  */
-export async function getProductPage(db: D1Database, id: string, vis: Visibility): Promise<ProductPageData | null> {
+export async function getProductPage(
+  db: D1Database,
+  id: string,
+  vis: Visibility,
+  { anyStatus = false }: { anyStatus?: boolean } = {},
+): Promise<ProductPageData | null> {
   const series = '(SELECT series FROM products WHERE id = ?2)';
   const category = '(SELECT category FROM products WHERE id = ?2)';
   const others = `SELECT p.id FROM products p WHERE ${LISTED} AND p.id <> ?2 AND p.series <> '' AND p.series = ${series}
@@ -270,7 +277,7 @@ export async function getProductPage(db: D1Database, id: string, vis: Visibility
     AND (p.series = '' OR p.series <> ${series}) ${NEWEST} LIMIT ${RELATED_LIMIT}`;
   const args = [vis.includeDemo ? 1 : 0, id];
   const [self, selfVariants, otherRows, otherVariants, relatedRows, relatedVariants] = await db.batch([
-    ...productsAndVariants(db, `SELECT p.id FROM products p WHERE p.id = ?2 AND ${LISTED}`, args),
+    ...productsAndVariants(db, `SELECT p.id FROM products p WHERE p.id = ?2${anyStatus ? '' : ` AND ${LISTED}`}`, args),
     ...productsAndVariants(db, others, args),
     ...productsAndVariants(db, related, args),
   ]);

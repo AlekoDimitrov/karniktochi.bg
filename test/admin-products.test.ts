@@ -377,6 +377,30 @@ describe('quick edit from the list', () => {
   });
 });
 
+describe('the admin preview', () => {
+  it('shows a draft or archived product that the storefront hides', async () => {
+    const live = await addProduct(db, { name: 'Публикуван', series: 's' });
+    const draft = await addProduct(db, { name: 'Чернова', status: 'draft', series: 's' }, sizes(['210 мм', '240 мм']));
+    const vis = { includeDemo: true };
+    expect(await getProductPage(db, draft, vis)).toBeNull();
+    const preview = await getProductPage(db, draft, vis, { anyStatus: true });
+    expect(preview?.product).toMatchObject({ id: draft, status: 'draft' });
+    expect(preview?.product.variants.map((v) => v.optionValue)).toEqual(['210 мм', '240 мм']);
+    // Other models are still public products only.
+    expect(preview?.otherModels.map((p) => p.id)).toEqual([live]);
+    expect((await getProductPage(db, live, vis))?.otherModels).toEqual([]);
+    await db.prepare(`UPDATE products SET status = 'archived' WHERE id = ?`).bind(draft).run();
+    expect((await getProductPage(db, draft, vis, { anyStatus: true }))?.product.status).toBe('archived');
+    expect(await getProductPage(db, 'nyama', vis, { anyStatus: true })).toBeNull();
+  });
+
+  it('shows a product with no active sizes, with no sizes', async () => {
+    const id = await addProduct(db, { name: 'Без размери', status: 'draft' });
+    await db.prepare(`UPDATE variants SET status = 'archived' WHERE product_id = ?`).bind(id).run();
+    expect((await getProductPage(db, id, { includeDemo: true }, { anyStatus: true }))?.product.variants).toEqual([]);
+  });
+});
+
 describe('purging everything', () => {
   it('calls purgeEverything once, and skips without a purger', async () => {
     const purger = { purge: vi.fn(async () => ({ success: true, errors: [] })) };

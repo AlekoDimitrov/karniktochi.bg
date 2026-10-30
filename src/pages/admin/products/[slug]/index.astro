@@ -12,6 +12,7 @@ import {
 } from '../../../../lib/admin-products';
 import { categoryLabel, productStatusLabel } from '../../../../lib/admin-labels';
 import { productPurgeTags, purgerFrom, purgeTags, stockPurgeTags } from '../../../../lib/cache-purge';
+import { visibility } from '../../../../lib/products';
 
 export const prerender = false;
 
@@ -89,6 +90,9 @@ const messages: Record<string, string> = {
 };
 const msg = messages[Astro.url.searchParams.get('msg') ?? ''];
 const archived = product.variants.filter((v) => v.status === 'archived');
+// Linked on the site only when customers can see it there (as saved, not as typed in an unsaved form).
+const onSite =
+  product.status === 'published' && product.variants.some((v) => v.status === 'active') && (visibility.includeDemo || !product.isDemo);
 const canDelete = product.status === 'draft' && !(await productHasOrders(env.DB, id));
 const confirmDelete = canDelete && Astro.url.searchParams.get('confirm') === 'delete';
 ---
@@ -101,6 +105,10 @@ const confirmDelete = canDelete && Astro.url.searchParams.get('confirm') === 'de
     <span class="muted">{categoryLabel[product.category]}</span>
     <span class="muted">Address: <code>/produkti/{product.id}/</code> (never changes)</span>
   </div>
+  <p class="pf-links">
+    <a href={`${self}preview/`}>Preview<span class="visually-hidden"> {product.name}</span></a>
+    {onSite && <a href={`/produkti/${product.id}/`}>View on site<span class="visually-hidden"> ({product.name})</span></a>}
+  </p>
 
   {msg && <p class="admin-msg" role="status">{msg}</p>}
   {problem && (
