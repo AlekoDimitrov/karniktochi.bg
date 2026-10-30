@@ -1,25 +1,33 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-29, after the shipping text, the database-reset
-decision and gitignoring backups.
+Rewritten at the end of every task. Last updated: 2026-10-30, after the footer social links, the new home
+text, and merging main into products-in-d1.
 
 ## Branch
 
-`products-in-d1` is on GitHub (`origin/products-in-d1`, up to `da6caa7`); the commits after it (`376f463` and
-this one) are local and not pushed yet. `main` is on GitHub at `fa78e84` and is the deployed version.
+Nothing from 2026-10-30 is pushed yet; the user pushes after approving.
+
+- `main`: local `b98643f`, 3 commits ahead of `origin/main` (`fa78e84`).
+- `products-in-d1`: local, ahead of `origin/products-in-d1` (`376f463`) by `02f6d0a` onwards, including this commit.
+
+**Pushing deploys.** Cloudflare Workers Builds is connected to the GitHub repo (Worker `karniktochi-bg`).
+GitHub shows a "Workers Builds: karniktochi-bg" check on `fa78e84` (main, production build) and on
+`da6caa7` (a preview build for products-in-d1). So a push to main starts a production build and deploy,
+and a push to products-in-d1 makes a preview build. The `fa78e84` build **failed** (cause not looked at:
+see the build log in the Cloudflare dashboard), so the live site may be older than `fa78e84`.
 
 ## Last 10 commits (before this one)
 
+- `60ff51d` Merge main into products-in-d1: footer social links, home text, .gitignore
+- `b98643f` Home: new hero text, sharpening text, trust lines, real email and phone (main, cherry-pick of `6f73235`)
+- `d3260f9` .gitignore: node_modules without trailing slash, so a symlink is ignored too (main)
+- `e0db3b8` Footer: Facebook and Instagram icon links in the contact column (main)
+- `6f73235` Home: new hero text, sharpening text, trust lines, real email and phone
+- `042dd4a` DECISIONS: Organization JSON-LD and site wait for karniktochi.com
+- `02f6d0a` Shipping paid to the courier on delivery; remote D1 reset at launch; gitignore backups
 - `376f463` HANDOFF: branch pushed, excerpt files deleted, flag the untracked database backup
 - `da6caa7` Add docs/HANDOFF.md and docs/DECISIONS.md; CLAUDE.md: read decisions, update handoff
 - `ba22d8d` Fix what the click-through found: cart caps, unavailable lines, load failures, admin stock, 404s, phone overflow
-- `6695f30` Pages: Cache-Control public, max-age=0, s-maxage=60, stale-while-revalidate=600
-- `56b326e` Merge main into products-in-d1: workshop paragraph and footer from main
-- `fa78e84` Home: workshop paragraph and footer address and about line (on main, deployed)
-- `9928925` Slice 1 report: 500-product CPU table, order and stock-change CPU, Workers Cache answers, walkthrough
-- `0aed0fd` Fix the admin orders list past 100 orders; skip purging where Workers Cache has no purge()
-- `805ce34` Add npm run seed:dev: local catalog of 2 knives in three sizes and 20 single products
-- `cfb120d` Slice 1: no page loads the whole catalog; Workers Cache replaces the page cache
 
 ## Finished
 
@@ -33,6 +41,13 @@ this one) are local and not pushed yet. `main` is on GitHub at `fa78e84` and is 
   - npm run seed:dev.
 - The click-through fixes in `ba22d8d`, each with a test.
 - The report: docs/slice-1-report.md (CPU tables, Workers Cache answers, migration results).
+- On both branches (2026-10-30):
+  - Facebook and Instagram icon links in the footer's КОНТАКТ column. The URLs are in `src/config/site.ts`
+    and the aria-labels in `bg.ts`.
+  - The user's new home text: hero, sharpening section, trust lines, and the real email and phone in the
+    footer. The strings are identical on both branches (checked by loading both bg.ts files).
+- The Organization JSON-LD is not added: there is no site URL yet. See the 2026-10-30 entry in
+  docs/DECISIONS.md.
 
 ## In progress
 
@@ -50,20 +65,29 @@ this one) are local and not pushed yet. `main` is on GitHub at `fa78e84` and is 
 - 404 pages.
 - Phone width (390 px, in an iframe) for home, listing, category, product, cart, checkout, thank-you,
   admin and 404.
+- Footer social links, on main before the home-text commit:
+  - desktop and 390 px: 44×44 targets, cream icons, yellow on hover;
+  - keyboard: Tab order Поверителност → Facebook → Instagram, yellow icon and outline on focus.
+  - Not rechecked in a browser on products-in-d1 after the merge.
 
 ## Not tested in a browser
 
 - Anything on Cloudflare: cache hits, tag purges, workers.dev, the custom domain, real Cloudflare Access.
 - Real email sending through Resend.
-- Keyboard-only use and screen readers.
+- Keyboard-only use (except the footer social links) and screen readers.
 - Real phones (only the 390 px iframe).
 - The `/api/cart-lines` failure on first page load. Only a failure after the page had loaded was tested.
 
 ## Test and build results (at this commit)
 
-- `npm test`: 14 files, 133 tests, all passing.
-- `npx astro check`: 0 errors, 0 warnings, 0 hints.
-- `npm run build`: completes; check-hidden passes.
+- products-in-d1, with the merge resolved:
+  - `npm test`: 14 files, 133 tests, all passing;
+  - `npx astro check`: 0 errors, 0 warnings;
+  - `npm run build`: completes, check-hidden passes.
+- main at `b98643f`:
+  - `npm test`: 4 files, 39 tests, all passing;
+  - `npx astro check`: 0 errors, 0 warnings;
+  - `npm run build`: completes, check-hidden passes.
 
 ## Open questions
 
@@ -76,6 +100,12 @@ this one) are local and not pushed yet. `main` is on GitHub at `fa78e84` and is 
   applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
   the first deploy of this branch.
 - The reasons marked "not recorded" in docs/DECISIONS.md.
+- Pushing main deploys it through Workers Builds. DECISIONS says "No deploy until the admin product manager
+  works", but main has been deployed before. Is pushing main still allowed?
+- Why did the Workers Builds production build for `fa78e84` fail, and what is live now?
+- The Workers Builds Worker is `karniktochi-bg`, but `wrangler.jsonc` names the Worker `karniktochi`. Are these
+  the same Worker?
+- The Organization JSON-LD and Astro `site` wait for karniktochi.com.
 
 ## Known bugs and limits
 
@@ -86,6 +116,9 @@ this one) are local and not pushed yet. `main` is on GitHub at `fa78e84` and is 
 - Chrome may show a page's old copy once after an edit (stale-while-revalidate in the browser cache).
 - No product photos yet; product pages and the cart show placeholders.
 - R2 and MEDIA_BASE_URL are decided but not configured.
+- main: at 390 px the home page scrolls about 4 px sideways, with or without the social links. It is
+  probably the workshop postmark, which products-in-d1 clips (`.band-purple { overflow-x: clip; }`). Not
+  checked on products-in-d1.
 
 ## New on this branch (names only)
 
@@ -95,3 +128,4 @@ this one) are local and not pushed yet. `main` is on GitHub at `fa78e84` and is 
 - Environment variables: none new. Decided but not yet added: `MEDIA_BASE_URL`, an R2 binding.
 - Endpoint: `GET /api/cart-lines`
 - .gitignore: `backup*.sql`
+- From main: `src/config/site.ts` (social URLs); .gitignore `node_modules` without the trailing slash.
