@@ -3,7 +3,7 @@
 // ACCESS_TEAM_DOMAIN and ACCESS_AUD so the Access check is on) and requests each path below, unnormalised.
 // Every response must be 403 with `private, no-store`, or a 404; never a 200 or a redirect.
 // Usage: npm run build && npm run check:admin-paths. Uses a throwaway local database; exits non-zero on failure.
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -25,6 +25,8 @@ const ADMIN_PATHS = [
 
 const port = 8790;
 const state = mkdtempSync(join(tmpdir(), 'admin-paths-'));
+// With the tables in place, an admin page that slips past the check answers 200, not a database error.
+execFileSync('npx', ['wrangler', 'd1', 'migrations', 'apply', 'karniktochi', '--local', '--persist-to', state], { stdio: 'ignore' });
 const wrangler = spawn(
   'npx',
   ['wrangler', 'dev', '-c', 'dist/server/wrangler.json', '--port', String(port), '--inspector-port', '9232',

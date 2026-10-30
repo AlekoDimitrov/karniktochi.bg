@@ -164,6 +164,14 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
   The runtime decodes `%61` and resolves `.`/`..` before the middleware sees the path, so those reach the
   Access check. Upper-case paths and an encoded slash match no route.
 
+  The check was shown to fail: with the middleware's prefix changed to `/admim/` (built, never committed),
+  7 of the 11 paths returned the admin page (200, `no-store`) and the script exited 1. After restoring the
+  file, it passed again. The script applies the migrations to its throwaway database first, so a leak shows
+  as a 200 and not as a database error.
+
+- `setStock()` moved from `src/lib/orders.ts` to `test/d1.ts`, the shared test helper. No app code called
+  it; the three tests that use it to set up stock are unchanged.
+
 ## Not tested in a browser
 
 - Anything on Cloudflare: cache hits, tag purges, workers.dev, the custom domain, real Cloudflare Access.
@@ -202,9 +210,7 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
      - footer social links not rechecked in a browser on this branch; the 4 px sideways scroll at 390 px
        on main;
      - keyboard-only and screen-reader checks of the new admin pages;
-     - the reasons marked "not recorded" in docs/DECISIONS.md;
-     - `setStock()` in `src/lib/orders.ts`: no app code calls it, but `test/stock.test.ts` (1 test) and
-       `test/stock-api.test.ts` (2 tests) use it to set up stock. Not deleted; waiting for the user.
+     - the reasons marked "not recorded" in docs/DECISIONS.md.
 
 - **Staging checklist** (things only Cloudflare can show), in order:
   1. Workers Paid must be active before the admin runs on Cloudflare, including staging (DECISIONS,

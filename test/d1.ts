@@ -17,6 +17,14 @@ export async function migrate(db: D1Database, { after, upTo }: { after?: string;
   for (const file of files.slice(from, to)) await runSqlFile(db, `migrations/${file}`);
 }
 
+/** Test setup: sets a variant's stock row, creating it if missing (the old admin stock form's upsert). */
+export async function setStock(db: D1Database, variantId: string, quantity: number) {
+  await db
+    .prepare('INSERT INTO stock (variant_id, quantity) VALUES (?, ?) ON CONFLICT (variant_id) DO UPDATE SET quantity = excluded.quantity')
+    .bind(variantId, quantity)
+    .run();
+}
+
 /** A fresh in-memory D1 database with all migrations applied, or only those up to and including `upTo`. */
 export async function freshDb(upTo?: string) {
   const mf = new Miniflare(

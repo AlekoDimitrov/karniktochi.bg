@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { freshDb } from './d1';
+import { freshDb, setStock } from './d1';
 import { addProduct, order, variantIds } from './catalog-fixtures';
 import { setProductStatus } from '../src/lib/catalog';
-import { changeStatus, insertOrder, setStock } from '../src/lib/orders';
+import { changeStatus, insertOrder } from '../src/lib/orders';
 import { stockResponse } from '../src/lib/stock-api';
 
 let db: D1Database;

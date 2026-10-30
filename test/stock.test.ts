@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { freshDb } from './d1';
+import { freshDb, setStock } from './d1';
 import {
   changeStatus,
   getOrder,
   getStockLevels,
   insertOrder,
   OutOfStockError,
-  setStock,
   StatusConflictError,
   type NewOrder,
 } from '../src/lib/orders';

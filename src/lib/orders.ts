@@ -313,10 +313,3 @@ export function parseStockQuantity(value: unknown): number | null {
   const n = Number(value);
   return n <= MAX_STOCK ? n : null;
 }
-
-export async function setStock(db: D1Database, variantId: string, quantity: number) {
-  await db
-    .prepare('INSERT INTO stock (variant_id, quantity) VALUES (?, ?) ON CONFLICT (variant_id) DO UPDATE SET quantity = excluded.quantity')
-    .bind(variantId, quantity)
-    .run();
-}
