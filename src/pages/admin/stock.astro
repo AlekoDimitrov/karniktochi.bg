@@ -36,14 +36,14 @@ const levels = await getStockLevels(env.DB, {});
 const saved = Astro.url.searchParams.get('saved');
 const invalid = Astro.url.searchParams.get('invalid');
 ---
-<AdminLayout title="Наличност" active="stock">
-  <h1 class="page-h1">Наличност</h1>
+<AdminLayout title="Stock" active="stock">
+  <h1 class="page-h1">Stock</h1>
   <p class="muted" style="max-width: 640px">
-    Броят тук е актуалната наличност на всеки вариант: поръчките я намаляват, а отказаните и анулираните я връщат.
-    При нова доставка въведете новия общ брой тук.
+    The number here is each variant's live stock: orders lower it, and cancelled or refused orders return it.
+    When new stock arrives, enter the new total here.
   </p>
   <table class="stock-table">
-    <thead><tr><th>Продукт</th><th>Наличност</th></tr></thead>
+    <thead><tr><th>Product</th><th>Stock</th></tr></thead>
     <tbody>
       {rows.map((p) => (
         <tr id={`p-${p.id}`}>
@@ -58,14 +58,14 @@ const invalid = Astro.url.searchParams.get('invalid');
                 max={MAX_STOCK}
                 required
                 value={levels[p.id] ?? 0}
-                aria-label={`Наличност за ${p.title}`}
+                aria-label={`Stock for ${p.title}`}
                 aria-invalid={invalid === p.id ? 'true' : undefined}
                 aria-describedby={invalid === p.id ? `err-${p.id}` : undefined}
               />
-              <button class="btn btn--accent" type="submit">Запази</button>
-              {saved === p.id && <span role="status">Записано.</span>}
+              <button class="btn btn--accent" type="submit">Save</button>
+              {saved === p.id && <span role="status">Saved.</span>}
               {invalid === p.id && (
-                <span class="form-error" id={`err-${p.id}`} role="alert">Не е записано: въведете цяло число от 0 до 100 000.</span>
+                <span class="form-error" id={`err-${p.id}`} role="alert">Not saved: enter a whole number from 0 to 100,000.</span>
               )}
             </form>
           </td>

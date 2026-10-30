@@ -6,21 +6,21 @@ interface Props { title: string; active: 'orders' | 'stock' }
 const { title, active } = Astro.props;
 ---
 <!doctype html>
-<html lang="bg">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
-    <title>{title} — Админ</title>
+    <title>{title} — Admin</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   </head>
   <body>
     <header class="admin-bar">
-      <strong>Карник Точи · Админ</strong>
+      <strong>Karnik Tochi · Admin</strong>
       <nav>
-        <a href="/admin/" aria-current={active === 'orders' ? 'page' : undefined}>Поръчки</a>
-        <a href="/admin/stock/" aria-current={active === 'stock' ? 'page' : undefined}>Наличност</a>
-        <a href="/">Към сайта</a>
+        <a href="/admin/" aria-current={active === 'orders' ? 'page' : undefined}>Orders</a>
+        <a href="/admin/stock/" aria-current={active === 'stock' ? 'page' : undefined}>Stock</a>
+        <a href="/">View site</a>
       </nav>
     </header>
     <main class="admin"><slot /></main>

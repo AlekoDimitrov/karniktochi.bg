@@ -18,12 +18,12 @@ import {
 export const prerender = false;
 
 const statusLabel: Record<OrderStatus, string> = {
-  new: 'Нова — за потвърждение',
-  confirmed: 'Потвърдена',
-  shipped: 'Изпратена',
-  delivered: 'Доставена',
-  cancelled: 'Анулирана',
-  refused: 'Отказана пратка (НП)',
+  new: 'New (to confirm)',
+  confirmed: 'Confirmed',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
+  refused: 'Refused (COD)',
 };
 const isStatus = (s: unknown): s is OrderStatus => ORDER_STATUSES.includes(s as OrderStatus);
 
@@ -58,25 +58,26 @@ if (Astro.request.method === 'POST') {
 }
 
 const messages: Record<string, string> = {
-  saved: 'Записано.',
-  invalid: 'Невалидна заявка.',
-  conflict: 'Поръчката беше променена междувременно (напр. от друг прозорец). Нищо не е записано; вижте актуалния статус.',
-  stock: 'Няма достатъчно наличност, за да се върне поръчката в активен статус. Нищо не е записано.',
+  saved: 'Saved.',
+  invalid: 'Invalid request.',
+  conflict: 'This order was changed in the meantime (for example in another tab). Nothing was saved; check its current status.',
+  stock: 'Not enough stock to move this order back to an active status. Nothing was saved.',
 };
 const msg = messages[Astro.url.searchParams.get('msg') ?? ''];
 const orders = await listOrders(env.DB, status);
-const when = (iso: string) => new Date(iso).toLocaleString('bg-BG', { timeZone: 'Europe/Sofia', dateStyle: 'short', timeStyle: 'short' });
+// Sofia time, written in English with day/month order.
+const when = (iso: string) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Europe/Sofia', dateStyle: 'short', timeStyle: 'short' });
 ---
-<AdminLayout title="Поръчки" active="orders">
-  <h1 class="page-h1">Поръчки</h1>
-  <nav class="chips" aria-label="Филтър по статус">
-    <a class="chip" href="/admin/" aria-current={!status ? 'page' : undefined}>Всички</a>
+<AdminLayout title="Orders" active="orders">
+  <h1 class="page-h1">Orders</h1>
+  <nav class="chips" aria-label="Filter by status">
+    <a class="chip" href="/admin/" aria-current={!status ? 'page' : undefined}>All</a>
     {ORDER_STATUSES.map((s) => (
       <a class="chip" href={`/admin/?status=${s}`} aria-current={status === s ? 'page' : undefined}>{statusLabel[s]}</a>
     ))}
   </nav>
   {msg && <p class="admin-msg" role="status">{msg}</p>}
-  {orders.length === 0 && <p style="margin-top: 24px">Няма поръчки.</p>}
+  {orders.length === 0 && <p style="margin-top: 24px">No orders.</p>}
   <ol class="orders">
     {orders.map((o) => (
       <li class="order" id={`order-${o.id}`} data-status={o.status}>
@@ -91,9 +92,9 @@ const when = (iso: string) => new Date(iso).toLocaleString('bg-BG', { timeZone: 
             <div>{o.customerName}</div>
             <a class="tel" href={`tel:${o.phone}`}>{formatBgPhone(o.phone)}</a>
             {o.email && <div><a href={`mailto:${o.email}`}>{o.email}</a></div>}
-            <div>{o.deliveryMethod === 'office' ? 'Офис' : 'Адрес'}: {o.city}, {o.deliveryDetails}</div>
-            <div>{o.paymentMethod === 'cod' ? 'Наложен платеж' : 'Банков превод'}</div>
-            {o.customerNote && <div class="order__note">Бележка от клиента: {o.customerNote}</div>}
+            <div>{o.deliveryMethod === 'office' ? 'Courier office' : 'Address'}: {o.city}, {o.deliveryDetails}</div>
+            <div>{o.paymentMethod === 'cod' ? 'Cash on delivery' : 'Bank transfer'}</div>
+            {o.customerNote && <div class="order__note">Customer note: {o.customerNote}</div>}
           </div>
           <ul class="order__items">
             {o.items.map((i) => <li>{i.quantity} × {itemTitle(i)} — {formatPrice(i.unitPriceCents * i.quantity)}</li>)}
@@ -103,16 +104,16 @@ const when = (iso: string) => new Date(iso).toLocaleString('bg-BG', { timeZone: 
           <input type="hidden" name="id" value={o.id} />
           <input type="hidden" name="expected" value={o.status} />
           <label>
-            Статус
+            Status
             <select name="status">
               {ORDER_STATUSES.map((s) => <option value={s} selected={s === o.status}>{statusLabel[s]}</option>)}
             </select>
           </label>
           <label class="order__internal">
-            Вътрешна бележка (клиентът не я вижда)
+            Internal note (the customer never sees it)
             <textarea name="note" maxlength="2000">{o.internalNote}</textarea>
           </label>
-          <button class="btn btn--accent" type="submit">Запази</button>
+          <button class="btn btn--accent" type="submit">Save</button>
         </form>
       </li>
     ))}

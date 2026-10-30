@@ -1,6 +1,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { env } from 'cloudflare:workers';
 import { verifyAccess } from './lib/access';
+import { isSameOriginRequest } from './lib/admin-origin';
 import { cacheControlFor } from './lib/cache-policy';
 
 // Response.redirect() and some fetched responses have immutable headers; copy those before setting.
@@ -34,6 +35,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (!import.meta.env.DEV) {
     const user = await verifyAccess(context.request, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
     if (!user) return new Response('Forbidden', { status: 403, headers: adminHeaders });
+  }
+  // Every admin change must come from an admin page on this site (see admin-origin.ts). Checked in dev too.
+  if (!isSameOriginRequest(context.request, context.url.origin)) {
+    return new Response('Forbidden: cross-site request', { status: 403, headers: adminHeaders });
   }
   return setHeaders(await next(), adminHeaders);
 });
