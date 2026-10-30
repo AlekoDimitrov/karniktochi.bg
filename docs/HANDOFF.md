@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-30, at the slice 2 stop after step 6 (products
-list, quick edit, archive demos).
+Rewritten at the end of every task. Last updated: 2026-10-30, at the slice 2 stop after step 8 (create and
+edit form, preview, View on site).
 
 ## Branch
 
@@ -13,6 +13,9 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Last 10 commits (before this one)
 
+- `b0e635e` Slice 2 step 8: admin preview of any product (draft banner, cart off) and View on site links; product page body shared as ProductView
+- `4bc29fa` Slice 2 step 7: create and edit product form with sizes editor, conflict and stock checks, archived sizes with restore, delete draft with confirmation; slug 'new' reserved
+- `1b387e8` HANDOFF: slice 2 stop after step 6
 - `2faa103` Slice 2 step 6: quick edit of price and stock on the products list; archive all demo products; /admin/stock/ redirects; search also matches the slug
 - `374b7ee` Slice 2 step 5: admin products list: search, category and status filters, 50 per page, price range, stock, status
 - `68e885f` Slice 2 step 4: admin data layer: list/search, create, edit with size diff and conflict checks, quick edit, delete draft, archive demos; purgeAll
@@ -20,9 +23,6 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - `8661bf8` HANDOFF: slice 2 stop after step 2
 - `5c2a1b8` Slice 2 step 2: admin orders paginated at 50; npm run seed:orders / unseed:orders for local test orders
 - `6b686a6` Slice 2 step 1: admin in English; reject cross-site admin requests (Origin check)
-- `341a3ce` Slice 2 plan approved with decisions; DECISIONS: deploy policy, slice 2 choices; CLAUDE.md: products in D1
-- `4ae1e76` DECISIONS: no Git-connected builds, karniktochi-bg deleted, deploys manual; HANDOFF updated
-- `cae39df` HANDOFF: Workers Builds findings, two Workers, live site is the hand-deployed karniktochi
 
 ## Finished
 
@@ -53,15 +53,27 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
       (`src/lib/admin-origin.ts`), in dev too;
     - orders show 50 per page, keeping the status filter; a bad `?page=` goes to page 1, and a page past
       the end goes to the last page.
-  - Steps 3–6 done, waiting for the user's click-through:
+  - Steps 3–6, checked by the user in the browser:
     - `src/lib/admin-input.ts`: euro prices to exact cents, product form and quick-edit validation;
     - `src/lib/admin-products.ts`: list and search, create, edit with the size diff, conflict and stock
       checks, quick edit, restore a size, delete a draft, archive demos;
     - `/admin/products/`: search (name, brand, slug, SKU), filters, 50 per page, quick edit per size,
       "Archive all demo products" with a confirmation;
     - `/admin/stock/` now redirects (301) to `/admin/products/`.
-  - The "Edit" links on the list lead to pages that come in step 7; until then they are 404s.
-  - Next: steps 7–8 (the create/edit form, then preview and "View on site"), then the next stop.
+  - Steps 7–8 done, waiting for the user's click-through:
+    - `/admin/products/new/` and `/admin/products/{slug}/`: one form (`src/components/admin/ProductForm.astro`)
+      with every product field, the sizes editor (`src/scripts/admin-variants.ts`: Add size, Move up/down;
+      without JavaScript, spare rows and order numbers), errors per field with the typing kept, the
+      two-tab conflict message, and the "an order changed the stock" message per size;
+    - archived sizes are listed with Restore; a never-ordered draft can be deleted after a confirmation;
+    - an empty "Photos — coming in slice 3" section;
+    - `/admin/products/{slug}/preview/`: the storefront page for any status, with a yellow banner and
+      add-to-cart off; `getProductPage(…, { anyStatus: true })`;
+    - "Preview" and "View on site" links on the edit page; "View on site" only when customers can see it;
+    - the product page body moved to `src/components/ProductView.astro`. The storefront HTML was compared
+      before and after on 4 product pages: identical.
+    - The slug "new" is reserved (it would collide with /admin/products/new/).
+  - Next: steps 9–10 (speed measurement into docs/slice-2-report.md, then docs), then the last stop.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -98,6 +110,21 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
   - archive demos: link, confirmation, "Archived 1 demo product.", tried on a local product temporarily
     marked as a demo and then restored;
   - `/admin/stock/` returns 301 to `/admin/products/`.
+- Create and edit (steps 7–8), on two test products that were deleted afterwards:
+  - new product with 3 sizes through Add size, Move up/down, saved as Draft: slug from the name, prices
+    99,90 / 1 129,50 / 149 stored as entered;
+  - the draft: 404 on /produkti/{slug}/, absent from /produkti/, the category and home; the preview shows
+    the yellow "draft, not visible to customers" banner, the size picker changes the price, and
+    add-to-cart stays off;
+  - published: on /produkti/ and the category, product page at the right prices and stock (210 мм at 0
+    disabled), /api/stock has the counts, and add-to-cart works (the cart was restored afterwards);
+  - errors: empty name, `1.299`, a duplicate size value: summary at the top gets focus, errors per field,
+    typing kept;
+  - two-tab conflict: refused with the message and a Reload link; the other tab's save kept;
+  - remove a size with no orders: deleted. Remove a size with orders (local "Петти Такамура R2" 170 мм):
+    archived, gone from the shop, then restored;
+  - delete a draft: confirmation, then "Deleted the draft …"; no product, size or stock rows left;
+  - 390 px: new, edit and preview pages with no sideways scroll.
 
 ## Not tested in a browser
 
@@ -109,8 +136,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## Test and build results (at this commit)
 
-- products-in-d1 at `2faa103`:
-  - `npm test`: 18 files, 256 tests, all passing;
+- products-in-d1 at `b0e635e`:
+  - `npm test`: 18 files, 261 tests, all passing;
   - `npx astro check`: 0 errors, 0 warnings;
   - `npm run build`: completes, check-hidden passes.
 - main at `b98643f`:
@@ -176,6 +203,7 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - Migration: `migrations/0002_products.sql`
 - Environment variables: none new. Decided but not yet added: `MEDIA_BASE_URL`, an R2 binding.
 - Endpoint: `GET /api/cart-lines`
-- Admin pages: `/admin/products/` (list, quick edit, archive demos); `/admin/stock/` is now a 301 redirect.
+- Admin pages: `/admin/products/` (list, quick edit, archive demos), `/admin/products/new/`,
+  `/admin/products/{slug}/` (edit), `/admin/products/{slug}/preview/`; `/admin/stock/` is now a 301 redirect.
 - .gitignore: `backup*.sql`
 - From main: `src/config/site.ts` (social URLs); .gitignore `node_modules` without the trailing slash.
