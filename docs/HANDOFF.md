@@ -1,27 +1,113 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-10-30, after slice 2: admin path check, staging database decided. Next: the
-open list below, then slice 3 (photos).
+Rewritten at the end of every task. Last updated: 2026-11-03: both branches built and tested from clean
+worktrees, the unfinished slice 3 code committed as WIP (`86b371d`), and migration 0003 applied to the local
+database only. Next: your approval of docs/slice-3-plan.md. Nothing more is built for slice 3 until then.
 
-## Branch
+## Branches
 
-- `main`: `b98643f`, pushed on 2026-10-30. Not deployed: the live site still runs `fa78e84`.
-- `products-in-d1`: pushed on 2026-10-30, including this commit.
+- `main`: `b98643f`, clean, same as `origin/main`. Not deployed: the live site still runs `fa78e84`.
+  main is fully merged into products-in-d1 (merge `60ff51d`, 2026-10-30).
+- `products-in-d1`: the WIP commit `86b371d` and this HANDOFF commit are local and **not pushed**.
+  `origin/products-in-d1` is at `9ffff2a`. The working tree is clean.
+- **Do not deploy products-in-d1 at `86b371d` or later.** The slice 3 code is unfinished, and
+  `wrangler.jsonc` names an R2 bucket (`karniktochi-media`) that doesn't exist on Cloudflare yet, so a
+  deploy fails.
+- Temporary worktrees: none. `git worktree list` shows only the main checkout.
 
 Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds nothing (DECISIONS,
 2026-10-30). The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev.
 
-## Last 10 commits (before this one)
+## Last 10 commits on products-in-d1 (before this one)
 
+- `86b371d` WIP slice 3: photo upload, unfinished, do not deploy
+- `9ffff2a` Slice 3 plan (draft, waiting for approval): product photos in R2
+- `a44e1e4` setStock moved to the shared test helper; check-admin-paths migrates its throwaway database and was shown to fail with a broken admin check
+- `034893d` Admin path spellings checked against the built Worker (all 403 or 404); check:admin-paths regression script; staging gets its own D1 database (decision)
+- `0be8015` Slice 2 step 10: checkout submit flat with order count (0/1k/5k) and accepted under Workers Paid; docs, open list before slice 3 and staging checklist; local test orders removed
 - `ab83564` Slice 2: admin CPU over 10 ms accepted (Workers Paid required, also for staging); storefront measured: checkout submit at ~15 ms; profile.mjs measures admin or storefront
 - `4f8e9cd` HANDOFF: slice 2 stop after step 9, decision needed on the admin speed target
 - `e93b471` Slice 2 step 9: admin speed measured (docs/slice-2-report.md); Sofia dates without Intl time zones; one read per product save; seed-perf and profile-admin scripts
 - `3068fa9` HANDOFF: slice 2 stop after step 8
 - `b0e635e` Slice 2 step 8: admin preview of any product (draft banner, cart off) and View on site links; product page body shared as ProductView
-- `4bc29fa` Slice 2 step 7: create and edit product form with sizes editor, conflict and stock checks, archived sizes with restore, delete draft with confirmation; slug 'new' reserved
-- `1b387e8` HANDOFF: slice 2 stop after step 6
-- `2faa103` Slice 2 step 6: quick edit of price and stock on the products list; archive all demo products; /admin/stock/ redirects; search also matches the slug
-- `374b7ee` Slice 2 step 5: admin products list: search, category and status filters, 50 per page, price range, stock, status
+
+## Slice 2 status: finished
+
+All 10 steps of docs/slice-2-plan.md are done and committed (details under "Finished" below).
+
+- **Clicked through in a browser by you:** steps 1–2 (admin in English, Origin check, orders at 50 per
+  page), steps 3–6 (products list, search, filters, quick edit, archive demos, /admin/stock/ redirect)
+  and steps 7–8 (create and edit form, sizes editor, errors, two-tab conflict, archived sizes, delete a
+  draft, preview, View on site). Steps 9–10 changed no screens (speed measurements and docs).
+- **Not clicked through:**
+  - anything on Cloudflare: real Cloudflare Access, cache hits and tag purges (including after a save,
+    a quick edit, publishing and "Archive all demo products"), workers.dev;
+  - keyboard-only and screen-reader use of the new admin pages;
+  - a real phone (only the 390 px iframe);
+  - the footer social links on products-in-d1 after the merge (they were checked on main).
+
+## Workers Paid is required
+
+Workers Paid must be active before the admin runs on Cloudflare, staging included (DECISIONS,
+2026-10-30). Free-plan Workers stop at 10 ms CPU per request; Paid allows 30 s by default. Local
+measurements, production build under wrangler dev, JS+GC time, with 500 products, 1,000 sizes and 1,000
+orders (docs/slice-2-report.md):
+
+| Request | CPU | Over 10 ms? |
+|---|---|---|
+| Admin products list | 11–15 ms | yes |
+| Admin product save | 12.6–15.9 ms | yes |
+| Admin quick edit | 9–11 ms | sometimes |
+| Admin edit and preview pages | 7–8 ms | no |
+| Admin orders pages | 7–9 ms | no |
+| Checkout submit, POST /api/orders | 14.4–15.2 ms first run, 9.0–10.6 ms rerun | yes, on the first run |
+| Every other storefront page | under 10 ms | no |
+
+- Checkout CPU stays the same with 0, 1,000 and 5,000 stored orders.
+- Why the first checkout run was ~15 ms and the rerun ~10 ms isn't known. The real figure comes from
+  staging (staging checklist, item 7).
+- Slice 1 found that uncached storefront pages are at or near 10 ms on the Free plan too (DECISIONS,
+  2026-10-29: the site launches on Workers Paid).
+
+## Slice 3 status: plan waiting for approval, partial WIP committed
+
+- **Plan:** `docs/slice-3-plan.md`, commit `9ffff2a` (2026-10-30 18:25), status "draft, waiting for
+  approval".
+- **What needs your approval:** the plan as a whole, plus its 5 "Decisions needed":
+  1. Safari and WebP: (a) add a WebAssembly WebP encoder (`@jsquash/webp`, ~300 KB, admin only,
+     recommended) or (b) Safari users are told to use Chrome or Firefox;
+  2. staging photos in a separate bucket `karniktochi-media-staging` with r2.dev on (recommended), or
+     r2.dev on `karniktochi-media`;
+  3. production waits for `media.karniktochi.com` (recommended), or uses an r2.dev URL for now;
+  4. framing: (a) 4:5 frames showing the whole photo (`contain`, recommended), (b) crop to 4:5 at
+     upload, or (c) keep `cover` and shoot 4:5;
+  5. the numbers: 400/900/1800 px, WebP quality 0.82, 12 photos per product, file caps 200 KB / 600 KB /
+     1.5 MB and 3 MB per upload, photos under 400 px refused.
+- **Code written before approval:** the files in `86b371d` are dated 2026-10-31 14:16–14:19, after the
+  plan commit but before any approval. It covers part of plan steps 1–2:
+  - `migrations/0003_product_photos.sql` (the plan's table, unchanged);
+  - `src/lib/photos.ts` (add, remove, move, alt, list, URL and srcset builders), `src/lib/webp.ts`,
+    `src/lib/photo-sizes.ts`;
+  - deleting a draft also deletes its photos;
+  - the `MEDIA` R2 binding and `MEDIA_BASE_URL` in `wrangler.jsonc`, with regenerated types;
+  - tests: `webp.test.ts`, `photo-sizes.test.ts`, R2 in `test/d1.ts`.
+- **Not written yet:** `photos.test.ts`, the 0003 migration test, the upload endpoint, the dev-media route,
+  the admin Photos section, anything on the storefront, speed measurements, the staging environment.
+- **What the WIP does that the plan doesn't say:**
+  - `src/lib/photo-sizes.ts` is a new file, not in the plan's file list. The plan does say the size
+    calculation is shared with the browser script.
+  - `test/fixtures/`: small WebP, PNG and JPEG files made with Pillow, not mentioned in the plan.
+  - `addPhoto` doesn't delete R2 objects that a concurrent upload of the same photo is already using.
+    The plan doesn't cover that case.
+  - The `wrangler.jsonc` comment cites "docs/DECISIONS.md, 2026-10-31", but there is no such entry. It
+    also points to `src/dev/media-route.ts`, which doesn't exist yet.
+  - `MEDIA_BASE_URL` is set to `https://media.karniktochi.com` for every environment. That assumes
+    decision 3 goes the recommended way.
+- **Known problem in the WIP:** `npx astro check` reports 1 error at `src/lib/photos.ts:62`
+  (`Uint8Array<ArrayBufferLike>` not assignable to `BufferSource` in `crypto.subtle.digest`). It was left
+  unfixed, because slice 3 is on hold.
+- **Local database:** migration 0003 is applied to the local D1 only (2026-11-03). The remote database
+  doesn't have it.
 
 ## Finished
 
@@ -86,7 +172,7 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 
 ## In progress
 
-- Nothing. Slice 3 (photos) is next, after the open list below.
+- Slice 3 is on hold until you approve the plan (see "Slice 3 status" above).
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -180,16 +266,40 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - Real phones (only the 390 px iframe).
 - The `/api/cart-lines` failure on first page load. Only a failure after the page had loaded was tested.
 
-## Test and build results (at this commit)
+## Test and build results (2026-11-03)
 
-- products-in-d1 at this commit (docs only since `ab83564`):
-  - `npm test`: 19 files, 265 tests, all passing;
-  - `npx astro check`: 0 errors, 0 warnings;
-  - `npm run build`: completes, check-hidden passes.
+Run in temporary detached worktrees of the committed branch heads (removed afterwards), not in the
+working checkout:
+
 - main at `b98643f`:
-  - `npm test`: 4 files, 39 tests, all passing;
-  - `npx astro check`: 0 errors, 0 warnings;
-  - `npm run build`: completes, check-hidden passes.
+  - `npx astro check`: 44 files, 0 errors, 0 warnings, 0 hints;
+  - `npm run build`: completes, check-hidden passes;
+  - `npm test`: 4 files, 39 tests, all passing.
+- products-in-d1 at `9ffff2a` (before the WIP commit):
+  - `npx astro check`: 81 files, 0 errors, 0 warnings, 1 hint;
+  - `npm run build`: completes, check-hidden passes;
+  - `npm test`: 19 files, 265 tests, all passing.
+- products-in-d1 at `86b371d` (WIP), in the working checkout:
+  - `npm test`: 21 files, 273 tests, all passing;
+  - `npx astro check`: 87 files, **1 error** (`src/lib/photos.ts:62`, see "Slice 3 status");
+  - `npm run build`: not run.
+
+## Open decisions for you
+
+1. **Approve, change or reject the slice 3 plan** (`docs/slice-3-plan.md`), including its 5 decisions
+   (listed under "Slice 3 status").
+2. **The WIP commit `86b371d`:** keep it as the start of slice 3 once the plan is approved, or drop it.
+   Also: should it be pushed? It isn't pushed yet.
+3. **Staging:** when to create the `karniktochi-staging` D1 database and turn on Workers Paid.
+4. **Remote database reset:** when to reset it relative to the first deploy of products-in-d1
+   (DECISIONS, 2026-10-29).
+5. The reasons marked "not recorded" in docs/DECISIONS.md.
+
+## To do
+
+- After the final merge, normalize the quote style in src/i18n/bg.ts on both branches in one
+  formatting-only commit. (main uses single quotes, products-in-d1 double quotes; the string values of
+  the 2026-10-30 home-text commit are identical on both.)
 
 ## Open questions
 
@@ -200,8 +310,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
      environment to `wrangler.jsonc` bound to it, and apply all migrations to it. I haven't touched any
      remote database.
   2. **Workers Paid** must be active before any staging deploy (DECISIONS, 2026-10-30).
-  3. **Slice 3 setup:** R2 bucket and `MEDIA_BASE_URL` are decided but not configured. The slice 3 brief
-     isn't written yet.
+  3. **Slice 3 setup:** the R2 binding `MEDIA` and `MEDIA_BASE_URL` are in `wrangler.jsonc` (WIP
+     `86b371d`). The bucket isn't created on Cloudflare. The plan is written and waiting for approval.
   4. **Checkout CPU:** why the first local measurement was ~15 ms and the rerun ~10 ms is not proven.
      Staging gives the real figure (checklist item 7).
   5. Small items, none blocking:
@@ -272,7 +382,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - Purging can't be checked locally: local dev has no Workers Cache and no purge().
 - Chrome may show a page's old copy once after an edit (stale-while-revalidate in the browser cache).
 - No product photos yet; product pages and the cart show placeholders.
-- R2 and MEDIA_BASE_URL are decided but not configured.
+- R2 and MEDIA_BASE_URL are configured in `wrangler.jsonc` (WIP), but the bucket doesn't exist on
+  Cloudflare, so a deploy of `86b371d` or later fails.
 - main: at 390 px the home page scrolls about 4 px sideways, with or without the social links. It is
   probably the workshop postmark, which products-in-d1 clips (`.band-purple { overflow-x: clip; }`). Not
   checked on products-in-d1.
@@ -284,8 +395,8 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 - Scripts: `scripts/seed-perf.mjs` (SQL for a throwaway local performance database), `scripts/profile.mjs`
   (CPU profiles of the admin or storefront requests under wrangler dev)
 - Config key: `cache.enabled` in wrangler.jsonc
-- Migration: `migrations/0002_products.sql`
-- Environment variables: none new. Decided but not yet added: `MEDIA_BASE_URL`, an R2 binding.
+- Migrations: `migrations/0002_products.sql`; `migrations/0003_product_photos.sql` (WIP, applied locally only)
+- Environment variables: `MEDIA_BASE_URL` (WIP). Binding: R2 `MEDIA` → `karniktochi-media` (WIP, bucket not created).
 - Endpoint: `GET /api/cart-lines`
 - Admin pages: `/admin/products/` (list, quick edit, archive demos), `/admin/products/new/`,
   `/admin/products/{slug}/` (edit), `/admin/products/{slug}/preview/`; `/admin/stock/` is now a 301 redirect.
