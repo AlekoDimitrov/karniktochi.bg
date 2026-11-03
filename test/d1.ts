@@ -25,12 +25,16 @@ export async function setStock(db: D1Database, variantId: string, quantity: numb
     .run();
 }
 
-/** A fresh in-memory D1 database with all migrations applied, or only those up to and including `upTo`. */
+/**
+ * A fresh in-memory D1 database with all migrations applied, or only those up to and including `upTo`, and an
+ * empty in-memory R2 bucket (the MEDIA binding).
+ */
 export async function freshDb(upTo?: string) {
   const mf = new Miniflare(
-    convertV4MiniflareOptions({ modules: true, script: 'export default {}', d1Databases: ['DB'] }),
+    convertV4MiniflareOptions({ modules: true, script: 'export default {}', d1Databases: ['DB'], r2Buckets: ['MEDIA'] }),
   );
   const db = (await mf.getD1Database('DB')) as unknown as D1Database;
+  const bucket = (await mf.getR2Bucket('MEDIA')) as unknown as R2Bucket;
   await migrate(db, { upTo });
-  return { db, dispose: () => mf.dispose() };
+  return { db, bucket, dispose: () => mf.dispose() };
 }

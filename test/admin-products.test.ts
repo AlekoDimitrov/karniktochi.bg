@@ -21,9 +21,10 @@ import { getProductPage, type Product } from '../src/lib/catalog';
 import { changeStatus, insertOrder } from '../src/lib/orders';
 
 let db: D1Database;
+let bucket: R2Bucket;
 let dispose: () => Promise<void>;
 beforeEach(async () => {
-  ({ db, dispose } = await freshDb());
+  ({ db, bucket, dispose } = await freshDb());
   // Start without the six demo products from migration 0002, except where a test wants them.
   await db.batch([db.prepare('DELETE FROM stock'), db.prepare('DELETE FROM variants'), db.prepare('DELETE FROM products')]);
 });
@@ -318,19 +319,19 @@ describe('deleting and archiving', () => {
   it('deletes a draft that was never ordered, with its sizes and stock', async () => {
     const id = await addProduct(db, { name: 'Чернова', status: 'draft' }, sizes(['1', '2']));
     const ids = await variantIds(db, id);
-    expect(await deleteDraftProduct(db, id)).toEqual({ ok: true, productId: id, category: 'gotvarski' });
+    expect(await deleteDraftProduct(db, bucket, id)).toEqual({ ok: true, productId: id, category: 'gotvarski' });
     expect(await getAdminProduct(db, id)).toBeNull();
     expect(await stockOf(ids[0])).toBeNull();
   });
 
   it('refuses to delete a published product or a draft with orders', async () => {
     const live = await addProduct(db, { name: 'Публикуван' });
-    expect(await deleteDraftProduct(db, live)).toMatchObject({ ok: false });
+    expect(await deleteDraftProduct(db, bucket, live)).toMatchObject({ ok: false });
     const ordered = await addProduct(db, { name: 'Поръчван' });
     const [v] = await variantIds(db, ordered);
     await insertOrder(db, order([[v, 1]]), {});
     await db.prepare(`UPDATE products SET status = 'draft' WHERE id = ?`).bind(ordered).run();
-    expect(await deleteDraftProduct(db, ordered)).toEqual({
+    expect(await deleteDraftProduct(db, bucket, ordered)).toEqual({
       ok: false,
       error: 'This product has orders, so it can’t be deleted. Archive it instead.',
     });

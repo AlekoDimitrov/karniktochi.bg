@@ -25,6 +25,14 @@
 			"migrations_dir": "migrations"
 		}
 	],
+	// Product photos (src/lib/photos.ts). Customers load them from MEDIA_BASE_URL, never through the Worker.
+	// The bucket isn't created on Cloudflare yet; a deploy fails until it is (docs/DECISIONS.md, 2026-10-31).
+	"r2_buckets": [
+		{
+			"binding": "MEDIA",
+			"bucket_name": "karniktochi-media"
+		}
+	],
 	"secrets": {
 		"required": ["RESEND_API_KEY"]
 	},
@@ -41,6 +49,9 @@
 		"EMAIL_FROM": "Карник Точи <porachki@karniktochi.com>",
 		// Cloudflare Access (protects /admin): team domain like "yourteam.cloudflareaccess.com" and the app's AUD tag.
 		"ACCESS_TEAM_DOMAIN": "",
-		"ACCESS_AUD": ""
+		"ACCESS_AUD": "",
+		// Where customers load product photos from: the bucket's custom domain, without a trailing slash.
+		// `astro dev` ignores it and serves the local bucket at /dev-media (src/dev/media-route.ts).
+		"MEDIA_BASE_URL": "https://media.karniktochi.com"
 	}
 }

@@ -41,7 +41,7 @@ if (Astro.request.method === 'POST') {
     }
     problem = result.error;
   } else if (action === 'delete') {
-    const result = await deleteDraftProduct(env.DB, id);
+    const result = await deleteDraftProduct(env.DB, env.MEDIA, id);
     // Only drafts can be deleted, and drafts are on no public page, so nothing to purge.
     if (result.ok) return Astro.redirect(`/admin/products/?deleted=${encodeURIComponent(product.name.slice(0, 120))}`, 303);
     problem = result.error;

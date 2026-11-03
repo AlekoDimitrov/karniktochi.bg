@@ -22,6 +22,7 @@ import {
   type ProductStatus,
   type VariantRow,
 } from './catalog';
+import { deleteObjects, listPhotos, objectKeysOf } from './photos';
 
 /** Products per page in the admin list. */
 export const ADMIN_PAGE_SIZE = 50;
@@ -337,20 +338,24 @@ export async function productHasOrders(db: D1Database, productId: string): Promi
 }
 
 /**
- * Deletes a draft that was never ordered, with its sizes and their stock. Anything else is refused: published
- * and archived products, and drafts with orders, can only be archived.
+ * Deletes a draft that was never ordered, with its sizes, their stock and its photos (rows first, then the R2
+ * objects). Anything else is refused: published and archived products, and drafts with orders, can only be
+ * archived.
  */
-export async function deleteDraftProduct(db: D1Database, productId: string): Promise<ActionResult> {
+export async function deleteDraftProduct(db: D1Database, bucket: R2Bucket, productId: string): Promise<ActionResult> {
   const product = await db.prepare('SELECT status, category FROM products WHERE id = ?').bind(productId).first<{ status: ProductStatus; category: Category }>();
   if (!product) return { ok: false, error: 'This product no longer exists.' };
   if (product.status !== 'draft') return { ok: false, error: 'Only drafts can be deleted. Archive this product instead.' };
   if (await productHasOrders(db, productId)) return { ok: false, error: 'This product has orders, so it can’t be deleted. Archive it instead.' };
+  const photos = await listPhotos(db, productId);
   // Drafts aren't public, so no order can arrive between the check and the delete.
   await db.batch([
+    db.prepare('DELETE FROM product_photos WHERE product_id = ?').bind(productId),
     db.prepare('DELETE FROM stock WHERE variant_id IN (SELECT id FROM variants WHERE product_id = ?)').bind(productId),
     db.prepare('DELETE FROM variants WHERE product_id = ?').bind(productId),
     db.prepare(`DELETE FROM products WHERE id = ? AND status = 'draft'`).bind(productId),
   ]);
+  await deleteObjects(bucket, objectKeysOf(photos));
   return { ok: true, productId, category: product.category };
 }
 
