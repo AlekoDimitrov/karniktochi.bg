@@ -83,7 +83,6 @@ h1, h2, h3, p { margin: 0; }
   font-family: var(--font-head); font-weight: 700; line-height: 1.1;
   font-size: clamp(32px, 4.6vw, 60px); text-wrap: balance;
 }
-.hero__text { font-size: 19px; max-width: 540px; color: #d5dbd6; }
 .hero__cta { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
 .hero__visual { flex: 1 1 340px; min-width: 0; max-width: 460px; width: 100%; }
 
