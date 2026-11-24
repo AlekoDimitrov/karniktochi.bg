@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-24, slice 3 stop 1 (after the admin Photos
-section, plan step 3). Next: your click-through of the Photos section, then step 4 (storefront).
+Rewritten at the end of every task. Last updated: 2026-11-24, slice 3 stop 2 (after the shop pages, plan
+step 4). Next: your click-through of the shop pages, then step 5 (speed) and step 6 (docs, staging config).
 
 ## Branches
 
@@ -15,7 +15,38 @@ section, plan step 3). Next: your click-through of the Photos section, then step
 Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds nothing (DECISIONS,
 2026-10-30). The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev.
 
-## Slice 3 status: approved, steps 1–3 done, stopped for click-through
+## Slice 3 status: approved, steps 1–4 done, stopped for the shop click-through
+
+### Since stop 1
+
+- **Broken admin thumbnail (your click-through):** not a code bug. Your `astro dev` (pid 11211) had been
+  running since before `/dev-media` was added to `astro.config.mjs`, so photo URLs got its 404 page. Evidence:
+  row `products/proba-santoku/ba8d36ce1e24a0ce` (webp, 400/900/1200, 1200×1200); all 3 objects in the local
+  R2 simulation; thumbnail URL `/dev-media/products/proba-santoku/ba8d36ce1e24a0ce-400.webp`: `404 text/html`
+  on the old server, `200 image/webp` after the restart, and the thumbnail loads (400×400) in Chrome.
+- **Dev server** now runs with `astro dev --background --host`. From an iPhone on the same Wi-Fi:
+  `http://10.43.96.72:4321/` (the Wi-Fi address; DHCP may change it — `astro dev status` shows the current
+  one). The admin Origin check accepts it: a same-origin POST via that address passes (the page's own 409
+  for a dummy action), a cross-site one gets 403.
+- **"Leave page?" warning** (`src/scripts/admin-unsaved.ts`, commit `f73a0fd`) on the product form while it
+  has unsaved changes, also before photo actions and links; never on the save itself or after a successful
+  save; a refused save starts dirty. Checked in Chrome with synthetic `beforeunload` events (a real dialog
+  would block the browser tools) and real Save clicks. **iOS Safari ignores `beforeunload`**, so there is no
+  warning on the iPhone.
+- **Step 4, shop pages** (commit `1063efe`): `Product.photos` (main photo on cards, all on the product page),
+  `ProductPhoto.astro` (img with srcset/sizes/width/height, or a placeholder with the product type), cards
+  (400/900, first listing row eager), product page gallery (main photo eager + high priority; thumbnails swap
+  it, links to the large rendition without JS), cart photo through `/api/cart-lines` (smallest rendition),
+  `og:image` (1800, only with an absolute base URL, so not in local dev), whole photo in the 4:5 frame
+  (`contain`) on cards, product page and cart. Tests: `catalog-photos.test.ts`, og:image in `photos.test.ts`.
+- **Checked by me in Chrome on :4321** (two temporary photos added to "Proba santoku" and removed after):
+  gallery with 3 photos, thumbnail swap (src, alt "…, снимка 3", aria-current); listing cards (photo on the
+  one with a photo, type placeholder on the rest); cart line photo (`contain`; your cart was restored);
+  390 px: product page, listing, home, category, cart and admin preview, no sideways scroll.
+- **Look to judge:** photos with a white background show beige bands in the frame (the frame is `--photo`).
+  If you prefer, the frame can be white when a photo is shown.
+
+### Steps 1–3 (stop 1)
 
 Plan: `docs/slice-3-plan.md` (approved; decisions recorded there and in DECISIONS on 2026-11-24).
 
@@ -57,12 +88,12 @@ Plan: `docs/slice-3-plan.md` (approved; decisions recorded there and in DECISION
 - curl: JPEG and WebP uploads 201, mixed formats 422, no Origin 403; `/dev-media` serves the local
   objects with their content type.
 
-### Your click-through (plan step 3 stop)
+### Your click-through (plan step 4 stop), desktop and iPhone at http://10.43.96.72:4321/
 
-**Restart your `astro dev`** first: the `/dev-media` route comes from a new integration in
-`astro.config.mjs`, so the server you had running before doesn't serve photos.
+Products with several photos, one photo and none: home, /produkti/, a category, the product page (gallery,
+thumbnails, the size picker still working), other models and related cards, the cart, the admin preview.
 
-In Chrome and Firefox (and Safari if you have one; that also answers whether Safari's canvas makes
+### Earlier click-through (plan step 3), still open if not done: in Chrome and Firefox (and Safari if you have one; that also answers whether Safari's canvas makes
 WebP — a Safari upload shows "· JPEG" next to the size if it doesn't): several real photos at once, a
 HEIC file, a non-image file, the 12-photo cap, move, remove, alt text, and a photo upload followed by a
 form save on the same page.
@@ -181,7 +212,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Slice 3: steps 4–6 (storefront, speed, docs and staging config) after your click-through.
+- Slice 3: steps 5–6 (speed, docs and staging config) after your click-through.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -277,11 +308,10 @@ orders (docs/slice-2-report.md):
 
 ## Test and build results (2026-11-24, products-in-d1 at this stop)
 
-- `npx astro check`: 0 errors, 0 warnings, 1 hint;
-- `npm test`: 25 files, 308 tests, all passing;
-- `npm run build`: completes, check-hidden passes; no `dev-media` in `dist/`;
-- `npm run check:admin-paths`: all 14 paths 403 (private, no-store) or 404.
-- The test for "D1 first, R2 second" was shown to fail with the order swapped in `removePhoto`.
+- `npx astro check`: 0 errors, 0 warnings, 1 hint (unused variable in scripts/profile.mjs, old);
+- `npm test`: 26 files, 314 tests, all passing;
+- `npm run build`: completes, check-hidden passes.
+- `check:admin-paths` was last run at stop 1 (no admin routes added since).
 
 ## Open decisions for you
 
@@ -377,7 +407,6 @@ orders (docs/slice-2-report.md):
 - /api/stock returns every public variant (about 12 KB at 1,000 variants).
 - Purging can't be checked locally: local dev has no Workers Cache and no purge().
 - Chrome may show a page's old copy once after an edit (stale-while-revalidate in the browser cache).
-- Photos can be uploaded in the admin, but the storefront doesn't show them yet (step 4).
 - R2 and MEDIA_BASE_URL are configured in `wrangler.jsonc`, but the bucket doesn't exist on Cloudflare,
   so a deploy fails (intended until staging/production are set up).
 - Orphaned R2 objects: if an R2 delete fails after the D1 row is gone, the files stay (logged). No
