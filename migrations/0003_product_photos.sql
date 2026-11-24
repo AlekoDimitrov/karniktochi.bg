@@ -1,5 +1,5 @@
 -- Product photos. The files are in R2 (binding MEDIA); each row is one photo with 1–3 renditions, stored as
--- {key}-{side}.webp for each long side in `sizes`. See src/lib/photos.ts.
+-- {key}-{side}.webp (or .jpg) for each long side in `sizes`. See src/lib/photos.ts.
 
 CREATE TABLE product_photos (
   id TEXT PRIMARY KEY,
@@ -8,6 +8,8 @@ CREATE TABLE product_photos (
   position INTEGER NOT NULL CHECK (position >= 0),
   -- products/{productId}/{first 16 hex characters of the SHA-256 of the largest rendition}
   key TEXT NOT NULL,
+  -- WebP, or JPEG when the browser can't encode WebP (Safari). All renditions of a photo share it.
+  format TEXT NOT NULL CHECK (format IN ('webp', 'jpeg')),
   -- Long sides stored, smallest first, e.g. '400,900,1800'.
   sizes TEXT NOT NULL,
   -- Bulgarian; empty means the storefront uses the product name.

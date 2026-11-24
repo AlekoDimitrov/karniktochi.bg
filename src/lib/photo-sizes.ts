@@ -7,6 +7,14 @@ export const RENDITION_SIDES = [400, 900, 1800] as const;
 export const MIN_LONG_SIDE = 400;
 /** WebP quality used by the browser's encoder. */
 export const WEBP_QUALITY = 0.82;
+/** JPEG quality, used when the browser can't encode WebP (Safari). */
+export const JPEG_QUALITY = 0.85;
+
+/** Every rendition of one photo has the same format. */
+export type PhotoFormat = 'webp' | 'jpeg';
+export const PHOTO_FORMATS: readonly PhotoFormat[] = ['webp', 'jpeg'];
+export const FORMAT_EXTENSION: Record<PhotoFormat, string> = { webp: 'webp', jpeg: 'jpg' };
+export const FORMAT_MIME: Record<PhotoFormat, string> = { webp: 'image/webp', jpeg: 'image/jpeg' };
 /** Most photos one product can have. */
 export const MAX_PHOTOS = 12;
 /** Longest alt text. */

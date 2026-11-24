@@ -2,20 +2,22 @@
 // imports here, so tests can run it against a plain D1 and R2.
 //
 // Rules (docs/slice-3-plan.md):
-// - A photo's renditions are R2 objects {key}-{side}.webp; keys never change, so the objects are immutable.
+// - A photo's renditions are R2 objects {key}-{side}.webp (or .jpg); keys never change, so the objects are
+//   immutable.
 // - The product id is in the key, so the same picture on two products is two separate sets of objects.
 // - Positions are 0..n-1 without gaps; 0 is the main photo. At most MAX_PHOTOS per product.
 // - Photo changes don't touch the product's updated_at, so they never trip the edit form's conflict check.
-// - Objects are put before the row is inserted and deleted after the row is gone. A failed delete leaves
-//   orphans that nothing links to, which is harmless.
+// - Objects are put before the row is inserted and deleted after the row is gone (best-effort: a failed R2
+//   delete never fails the request; the leftover keys are logged). Orphans are harmless: nothing links to them.
 
-import { ALT_MAX, MAX_PHOTOS, scaledSize } from './photo-sizes';
+import { ALT_MAX, FORMAT_EXTENSION, FORMAT_MIME, MAX_PHOTOS, scaledSize, type PhotoFormat } from './photo-sizes';
 
 export type Photo = {
   id: string;
   productId: string;
   position: number;
   key: string;
+  format: PhotoFormat;
   /** Long sides of the stored renditions, smallest first. */
   sizes: number[];
   alt: string;
@@ -29,6 +31,7 @@ export type PhotoRow = {
   product_id: string;
   position: number;
   key: string;
+  format: PhotoFormat;
   sizes: string;
   alt: string;
   width: number;
@@ -40,19 +43,20 @@ export const toPhoto = (r: PhotoRow): Photo => ({
   productId: r.product_id,
   position: r.position,
   key: r.key,
+  format: r.format,
   sizes: r.sizes.split(',').map(Number),
   alt: r.alt,
   width: r.width,
   height: r.height,
 });
 
-export const PHOTO_COLUMNS = 'ph.id, ph.product_id, ph.position, ph.key, ph.sizes, ph.alt, ph.width, ph.height';
+export const PHOTO_COLUMNS = 'ph.id, ph.product_id, ph.position, ph.key, ph.format, ph.sizes, ph.alt, ph.width, ph.height';
 
 /** Rendition objects are stored for a year and never change. */
 export const PHOTO_CACHE_CONTROL = 'public, max-age=31536000, immutable';
 
 /** The R2 key of one rendition. */
-export const renditionKey = (key: string, side: number) => `${key}-${side}.webp`;
+export const renditionKey = (key: string, side: number, format: PhotoFormat) => `${key}-${side}.${FORMAT_EXTENSION[format]}`;
 
 /** The R2 key prefix of a photo: products/{productId}/{hash}. */
 export const photoKey = (productId: string, hash: string) => `products/${productId}/${hash}`;
@@ -66,7 +70,8 @@ export async function photoHash(bytes: Uint8Array<ArrayBuffer>): Promise<string>
 // ---- URLs ---------------------------------------------------------------------------------------
 
 /** The URL of one rendition: MEDIA_BASE_URL + '/' + its key. */
-export const photoUrl = (base: string, photo: Pick<Photo, 'key'>, side: number) => `${base.replace(/\/+$/, '')}/${renditionKey(photo.key, side)}`;
+export const photoUrl = (base: string, photo: Pick<Photo, 'key' | 'format'>, side: number) =>
+  `${base.replace(/\/+$/, '')}/${renditionKey(photo.key, side, photo.format)}`;
 
 /** `srcset` for the photo's stored renditions, at most `maxSide` (each with its real width). */
 export function photoSrcset(base: string, photo: Photo, maxSide = Infinity): string {
@@ -112,6 +117,7 @@ export type PhotoUpload = {
   productId: string;
   /** photoHash() of the largest rendition. */
   hash: string;
+  format: PhotoFormat;
   /** Of the largest rendition. */
   width: number;
   height: number;
@@ -151,10 +157,10 @@ export async function addPhoto(db: D1Database, bucket: R2Bucket, upload: PhotoUp
   if ((count.results[0] as { n: number }).n >= MAX_PHOTOS) return { ok: false, error: FULL };
   if (duplicate.results.length) return { ok: false, error: DUPLICATE };
 
-  const objectKeys = upload.renditions.map((r) => renditionKey(key, r.side));
+  const objectKeys = upload.renditions.map((r) => renditionKey(key, r.side, upload.format));
   await Promise.all(
     upload.renditions.map((r, i) =>
-      bucket.put(objectKeys[i], r.bytes, { httpMetadata: { contentType: 'image/webp', cacheControl: PHOTO_CACHE_CONTROL } }),
+      bucket.put(objectKeys[i], r.bytes, { httpMetadata: { contentType: FORMAT_MIME[upload.format], cacheControl: PHOTO_CACHE_CONTROL } }),
     ),
   );
 
@@ -165,12 +171,12 @@ export async function addPhoto(db: D1Database, bucket: R2Bucket, upload: PhotoUp
   try {
     const result = await db
       .prepare(
-        `INSERT INTO product_photos (id, product_id, position, key, sizes, alt, width, height)
-         SELECT ?1, p.id, (SELECT COUNT(*) FROM product_photos WHERE product_id = p.id), ?2, ?3, ?4, ?5, ?6
+        `INSERT INTO product_photos (id, product_id, position, key, format, sizes, alt, width, height)
+         SELECT ?1, p.id, (SELECT COUNT(*) FROM product_photos WHERE product_id = p.id), ?2, ?8, ?3, ?4, ?5, ?6
          FROM products p WHERE p.id = ?7 AND (SELECT COUNT(*) FROM product_photos WHERE product_id = p.id) < ${MAX_PHOTOS}
          RETURNING position`,
       )
-      .bind(id, key, sizes, upload.alt, upload.width, upload.height, upload.productId)
+      .bind(id, key, sizes, upload.alt, upload.width, upload.height, upload.productId, upload.format)
       .all<{ position: number }>();
     position = result.results[0]?.position ?? null;
   } catch (e) {
@@ -190,7 +196,7 @@ export async function addPhoto(db: D1Database, bucket: R2Bucket, upload: PhotoUp
   }
   return {
     ok: true,
-    photo: { id, productId: upload.productId, position, key, sizes: upload.renditions.map((r) => r.side), alt: upload.alt, width: upload.width, height: upload.height },
+    photo: { id, productId: upload.productId, position, key, format: upload.format, sizes: upload.renditions.map((r) => r.side), alt: upload.alt, width: upload.width, height: upload.height },
   };
 }
 
@@ -212,7 +218,8 @@ export async function deleteObjects(bucket: R2Bucket, keys: string[]): Promise<v
 }
 
 /** The R2 keys of every rendition of these photos. */
-export const objectKeysOf = (photos: Pick<Photo, 'key' | 'sizes'>[]) => photos.flatMap((p) => p.sizes.map((s) => renditionKey(p.key, s)));
+export const objectKeysOf = (photos: Pick<Photo, 'key' | 'format' | 'sizes'>[]) =>
+  photos.flatMap((p) => p.sizes.map((s) => renditionKey(p.key, s, p.format)));
 
 // Renumbers a product's photos 0..n-1 in their current order (closes the gap a removed photo leaves).
 const renumber = (db: D1Database, productId: string) =>

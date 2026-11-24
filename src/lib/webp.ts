@@ -36,3 +36,6 @@ export function webpInfo(bytes: Uint8Array): WebpInfo | null {
   }
   return info.width > 0 && info.height > 0 ? info : null;
 }
+
+/** Whether a file that webpInfo() accepted says it carries EXIF data (the VP8X flag; only VP8X files can). */
+export const webpHasExif = (bytes: Uint8Array) => String.fromCharCode(...bytes.subarray(12, 16)) === 'VP8X' && (bytes[20] & 0x08) !== 0;
