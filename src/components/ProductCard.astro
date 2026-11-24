@@ -15,7 +15,7 @@ const { min, max } = priceRange(p);
 const price = min === max ? formatPrice(min) : bg.product.from.replace('{price}', formatPrice(min));
 ---
 <a class="card" href={`/produkti/${p.id}/`} data-variant-ids={p.variants.map((v) => v.id).join(' ')}>
-  <div class="card__photo">
+  <div class:list={['card__photo', { 'has-photo': p.photos.length > 0 }]}>
     {p.isDemo && <span class="ribbon">{bg.product.demo}</span>}
     <ProductPhoto product={p} photo={p.photos[0]} maxSide={900} eager={eager} sizes="(max-width: 640px) calc(100vw - 40px), (max-width: 1100px) 45vw, 290px" />
   </div>

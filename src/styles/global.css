@@ -5,6 +5,8 @@
   --ground: #f6f5ef;
   --sand: #e8e6da;
   --photo: #e1decf;
+  /* Behind a shown photo; --photo stays for the no-photo placeholder (DECISIONS 2026-11-24). */
+  --photo-shown: #fff;
   --muted: #4a5752;
   --orange: #fd9424;
   --orange-text: #a64e00;
@@ -279,6 +281,8 @@ h1, h2, h3, p { margin: 0; }
 .pdp__facts { display: flex; flex-wrap: wrap; gap: 8px 32px; font-size: 15px; font-weight: 600; }
 .related { background: var(--sand); }
 .related .photo { background: #d8d4c2; }
+/* A frame with a photo in it is white, so photos shot on white have no beige bands. */
+.card__photo.has-photo, .photo.has-photo, .related .photo.has-photo { background: var(--photo-shown); }
 
 /* Footer */
 .site-footer { background: var(--ink); color: #d5dbd6; }
@@ -318,6 +322,7 @@ h1, h2, h3, p { margin: 0; }
 .cart-lines { list-style: none; margin: 0; padding: 0; border-top: 1px solid rgba(23, 35, 31, 0.2); }
 .cart-line { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 20px; padding: 20px 0; border-bottom: 1px solid rgba(23, 35, 31, 0.2); }
 .cart-line__photo { width: 80px; aspect-ratio: 4 / 5; background: var(--photo); border-radius: var(--radius); overflow: hidden; flex: none; }
+.cart-line__photo.has-photo { background: var(--photo-shown); }
 .cart-line__photo img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .cart-line__info { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .cart-line__name { font-family: var(--font-head); font-weight: 500; font-size: 19px; }
@@ -471,7 +476,7 @@ input[aria-invalid='true'] { border-color: #b3261e; }
 .ph-list:empty { display: none; }
 .ph-item { display: flex; flex-wrap: wrap; gap: 12px 20px; padding-top: 16px; border-top: 1px solid rgba(23, 35, 31, 0.15); }
 .ph-item:first-child { border-top: 0; padding-top: 0; }
-.ph-item__img { flex: 0 0 auto; width: 160px; height: 200px; object-fit: contain; background: var(--photo); border-radius: var(--radius); }
+.ph-item__img { flex: 0 0 auto; width: 160px; height: 200px; object-fit: contain; background: var(--photo-shown); border-radius: var(--radius); }
 .ph-item__body { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .ph-item__title { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .ph-alt { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }

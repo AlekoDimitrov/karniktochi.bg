@@ -356,7 +356,8 @@ Made by the user on 2026-10-30, recorded here on 2026-11-24 (also in docs/DECISI
 2. **Staging photos:** their own bucket, `karniktochi-media-staging` (not created yet).
 3. **Production:** no production deploy until `media.karniktochi.com` exists.
 4. **Framing:** the whole photo inside the 4:5 frame on a light background, no cropping, on cards, the
-   product page and the cart.
+   product page and the cart. Changed 2026-11-24: the frame is white whenever a photo is shown (cards,
+   product page, thumbnails, cart, admin); the beige frame stays only for the no-photo placeholder.
 5. **Numbers:** 400 / 900 / 1,800 px, WebP quality 0.82, 12 photos per product, file limits 200 KB /
    600 KB / 1.5 MB and 3 MB per upload, photos under 400 px refused.
 

@@ -97,3 +97,6 @@ Reason: the user's answers to the plan's decisions.
 
 **2026-11-24: Workers Paid is turned on right before staging, after slice 3 is built.**
 Reason: the user's choice.
+
+**2026-11-24: The photo frame is white whenever a photo is shown (cards, product page, thumbnails, cart, admin preview). The beige frame (`--photo`) stays only for the no-photo placeholder.**
+Reason: the user's click-through of slice 3 step 4. Photos shot on white showed beige bands in the beige frame.

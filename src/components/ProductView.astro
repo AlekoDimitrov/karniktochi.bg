@@ -61,7 +61,7 @@ const variantData = d.variants.map((v) => ({
   <div class="crumb"><a href="/produkti/">{bg.product.back}</a></div>
   <div class="pdp">
     <div class="pdp__gallery">
-      <div class="photo photo--main">
+      <div class:list={['photo photo--main', { 'has-photo': photos.length > 0 }]}>
         {d.isDemo && <span class="ribbon">{bg.product.demo}</span>}
         <ProductPhoto product={d} photo={photos[0]} maxSide={1800} eager priority sizes={mainSizes} id="pdp-main-photo" />
       </div>
@@ -70,7 +70,7 @@ const variantData = d.variants.map((v) => ({
           {thumbs.map((t, i) => (
             <li>
               <a
-                class="photo thumb"
+                class="photo thumb has-photo"
                 href={t.href}
                 data-src={t.src}
                 data-srcset={t.srcset}

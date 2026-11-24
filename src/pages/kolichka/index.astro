@@ -119,8 +119,10 @@ const t = bg.cart;
         list.appendChild(li);
         continue;
       }
-      if (p.photo) img.src = p.photo;
-      else img.remove();
+      if (p.photo) {
+        img.src = p.photo;
+        img.parentElement!.classList.add('has-photo');
+      } else img.remove();
       q('[data-brand]').textContent = p.brand.toUpperCase();
       const name = q<HTMLAnchorElement>('[data-name]');
       name.textContent = p.name;
