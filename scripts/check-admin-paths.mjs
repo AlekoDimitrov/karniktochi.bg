@@ -21,6 +21,10 @@ const ADMIN_PATHS = [
   '/./admin/',
   '/admin/products/../',
   '/x/../admin/',
+  // The photo upload endpoint (slice 3), by GET and by POST.
+  '/admin/products/x/photos/',
+  'POST /admin/products/x/photos/',
+  'POST /%61dmin/products/x/photos/',
 ];
 
 const port = 8790;
@@ -35,9 +39,11 @@ const wrangler = spawn(
 );
 
 // node:http sends the path exactly as written (fetch() would normalise /./ and /../ first).
-const get = (path) =>
+// An entry is a path (GET) or 'POST {path}'.
+const get = (entry) =>
   new Promise((resolve, reject) => {
-    const req = request({ host: 'localhost', port, path, method: 'GET' }, (res) => {
+    const [method, path] = entry.startsWith('POST ') ? ['POST', entry.slice(5)] : ['GET', entry];
+    const req = request({ host: 'localhost', port, path, method, headers: method === 'POST' ? { 'Content-Length': '0' } : {} }, (res) => {
       res.resume();
       res.on('end', () => resolve({ status: res.statusCode, cacheControl: res.headers['cache-control'] ?? '', location: res.headers.location }));
     });

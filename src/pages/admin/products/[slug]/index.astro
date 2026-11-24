@@ -13,6 +13,7 @@ import {
 import { categoryLabel, productStatusLabel } from '../../../../lib/admin-labels';
 import { productPurgeTags, purgerFrom, purgeTags, stockPurgeTags } from '../../../../lib/cache-purge';
 import { visibility } from '../../../../lib/products';
+import { handlePhotoAction, isPhotoAction } from '../../../../lib/photo-upload';
 
 export const prerender = false;
 
@@ -33,7 +34,11 @@ if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
   const action = form.get('action');
 
-  if (action === 'restore') {
+  if (isPhotoAction(action)) {
+    const result = await handlePhotoAction(env.DB, env.MEDIA, purger, product, action, form);
+    if (result.ok) return Astro.redirect(`${self}?msg=${action}#photos`, 303);
+    problem = result.error;
+  } else if (action === 'restore') {
     const result = await restoreVariant(env.DB, id, String(form.get('variant') ?? ''));
     if (result.ok) {
       await purgeTags(purger, [...productPurgeTags({ id, category: result.category }), ...stockPurgeTags(id)]);
@@ -88,6 +93,9 @@ const messages: Record<string, string> = {
   created: 'Product created.',
   saved: 'Saved.',
   restored: 'Size restored. It is active again and at the end of the list.',
+  'photo-move': 'Photo moved.',
+  'photo-remove': 'Photo removed.',
+  'photo-alt': 'Alt text saved.',
 };
 const msg = messages[Astro.url.searchParams.get('msg') ?? ''];
 const archived = product.variants.filter((v) => v.status === 'archived');

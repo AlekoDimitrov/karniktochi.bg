@@ -26,7 +26,8 @@
 		}
 	],
 	// Product photos (src/lib/photos.ts). Customers load them from MEDIA_BASE_URL, never through the Worker.
-	// The bucket isn't created on Cloudflare yet; a deploy fails until it is (docs/DECISIONS.md, 2026-10-31).
+	// Local dev uses wrangler's local R2 simulation only. The bucket isn't created on Cloudflare yet, so a
+	// deploy fails until it is; no production deploy before media.karniktochi.com exists (DECISIONS).
 	"r2_buckets": [
 		{
 			"binding": "MEDIA",
@@ -51,7 +52,7 @@
 		"ACCESS_TEAM_DOMAIN": "",
 		"ACCESS_AUD": "",
 		// Where customers load product photos from: the bucket's custom domain, without a trailing slash.
-		// `astro dev` ignores it and serves the local bucket at /dev-media (src/dev/media-route.ts).
+		// `astro dev` uses /dev-media instead, served from the local bucket (src/lib/media-base.ts).
 		"MEDIA_BASE_URL": "https://media.karniktochi.com"
 	}
 }
