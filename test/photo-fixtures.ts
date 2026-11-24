@@ -6,7 +6,7 @@ import { renditionSides, scaledSize } from '../src/lib/photo-sizes';
  * A lossless WebP file of `width` × `height` with a valid header, padded to `bytes` (at least 30). Only the
  * header is real; nothing here decodes the pixels. `seed` changes the padding, so the hash differs.
  */
-export function fakeWebp(width: number, height: number, bytes = 64, seed = 0): Uint8Array {
+export function fakeWebp(width: number, height: number, bytes = 64, seed = 0): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(Math.max(30, bytes + (bytes % 2)));
   const view = new DataView(out.buffer);
   out.set([...'RIFF'].map((c) => c.charCodeAt(0)), 0);

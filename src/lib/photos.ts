@@ -58,7 +58,7 @@ export const renditionKey = (key: string, side: number) => `${key}-${side}.webp`
 export const photoKey = (productId: string, hash: string) => `products/${productId}/${hash}`;
 
 /** The first 16 hex characters of the SHA-256 of `bytes`. */
-export async function photoHash(bytes: Uint8Array): Promise<string> {
+export async function photoHash(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
   return Array.from(digest.subarray(0, 8), (b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -117,7 +117,7 @@ export type PhotoUpload = {
   height: number;
   alt: string;
   /** Smallest first. */
-  renditions: { side: number; bytes: Uint8Array }[];
+  renditions: { side: number; bytes: Uint8Array<ArrayBuffer> }[];
 };
 
 export type PhotoResult = { ok: true; photo: Photo } | { ok: false; error: string };
