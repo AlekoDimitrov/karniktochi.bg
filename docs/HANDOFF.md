@@ -1,27 +1,71 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-03: both branches built and tested from clean
-worktrees, the unfinished slice 3 code committed as WIP (`86b371d`), and migration 0003 applied to the local
-database only. Next: your approval of docs/slice-3-plan.md. Nothing more is built for slice 3 until then.
-
-## Update 2026-11-24 (in progress; this file is rewritten at the next stop)
-
-- Slice 3 approved (decisions recorded in docs/slice-3-plan.md and DECISIONS). Building it now.
-- **Workers Paid is turned on right before staging, after slice 3 is built** (user, 2026-11-24).
+Rewritten at the end of every task. Last updated: 2026-11-24, slice 3 stop 1 (after the admin Photos
+section, plan step 3). Next: your click-through of the Photos section, then step 4 (storefront).
 
 ## Branches
 
-- `main`: `b98643f`, clean, same as `origin/main`. Not deployed: the live site still runs `fa78e84`.
-  main is fully merged into products-in-d1 (merge `60ff51d`, 2026-10-30).
-- `products-in-d1`: the WIP commit `86b371d` and this HANDOFF commit are local and **not pushed**.
-  `origin/products-in-d1` is at `9ffff2a`. The working tree is clean.
-- **Do not deploy products-in-d1 at `86b371d` or later.** The slice 3 code is unfinished, and
-  `wrangler.jsonc` names an R2 bucket (`karniktochi-media`) that doesn't exist on Cloudflare yet, so a
-  deploy fails.
-- Temporary worktrees: none. `git worktree list` shows only the main checkout.
+- `main`: `b98643f`, same as `origin/main`. Not deployed: the live site still runs `fa78e84`.
+- `products-in-d1`: pushed to origin at this stop. **Not deployable:** `wrangler.jsonc` names the R2
+  bucket `karniktochi-media`, which doesn't exist on Cloudflare, and no production deploy happens before
+  `media.karniktochi.com` exists (DECISIONS, 2026-10-30, recorded 2026-11-24).
+- Temporary worktrees: none.
+- **Workers Paid is turned on right before staging, after slice 3 is built** (user, 2026-11-24).
 
 Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds nothing (DECISIONS,
 2026-10-30). The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev.
+
+## Slice 3 status: approved, steps 1–3 done, stopped for click-through
+
+Plan: `docs/slice-3-plan.md` (approved; decisions recorded there and in DECISIONS on 2026-11-24).
+
+- **Commits this session:** `55c8a9f` type error fix (photoHash), `63f379b` home text (own commit),
+  `c02de40` decisions recorded, `a22f463` step 1, `f729504` step 2, `0eb9781` + `39fbbbb` step 3.
+- **Step 1, data layer:** the early work in `86b371d` was kept and adapted to the JPEG fallback: a
+  `format` column (`webp`|`jpeg`) in 0003, `.jpg` keys and `image/jpeg` for JPEG photos, `src/lib/jpeg.ts`
+  and `src/lib/image-info.ts` (format by magic bytes; EXIF noticed). Tests: `photos.test.ts`,
+  `image-info.test.ts`, `migration-0003.test.ts`.
+- **Step 2, server:** `POST /admin/products/{slug}/photos/` (`src/lib/photo-upload.ts`): 1–3 files,
+  WebP or JPEG by bytes, one format per photo, long sides as expected, same proportions, per-file caps and
+  3 MB in total, files carrying EXIF refused; then the cap and duplicate checks in `addPhoto`; purge.
+  Photo move/remove/alt actions on the edit page, with purging. `/dev-media` route injected only by
+  `astro dev` (`src/dev/media-route.ts`, `src/lib/media-base.ts`); not in the build. `check:admin-paths`
+  covers the endpoint (GET and POST: 403).
+- **Step 3, admin UI:** `PhotoManager.astro` below the product form, `src/scripts/admin-photos.ts`
+  (decode, halving resize to 400/900/1800, WebP 0.82 or JPEG 0.85 when the canvas can't make WebP,
+  one at a time, XHR progress). Move/remove (with confirmation)/alt work without JavaScript. New uploads
+  appear at the end of the list; moving them etc. needs a reload (the page isn't reloaded for you, so
+  unsaved typing in the product form is kept). "Published without photos" warning.
+- **Not in the plan, added:** the server refuses files with EXIF (JPEG APP1 Exif segment, WebP EXIF
+  flag), so location data can't be stored even by a client that skips the canvas. Photo messages are
+  shown in the Photos section rather than at the top.
+- **Local database:** 0003 was re-applied to the local D1 (dropped and re-run; it had no photo rows) to
+  get the `format` column. No remote database or bucket was touched.
+
+### Checked by me in Chrome (astro dev from a scratch worktree on :4322, its own local data)
+
+- 4 files at once: 3000×1500 PNG → Done (WebP 400/900/1800); 300×200 → "Photo too small"; a .txt →
+  "Not an image file."; 1000×1250 → Done, sizes 400/900/1250 (no upscaling).
+- Safari simulated (`toBlob` patched to return PNG for WebP): the photo is stored as JPEG, shown
+  "· JPEG", transparent areas on white.
+- Cap: 10 more files picked at 2/12: 8 Done, then "Not added: this product already has 12 photos.";
+  input disabled, "12 of 12".
+- Move down, Remove (confirmation, then "Photo removed.", 11 of 12), Save alt text.
+- Changed a price, uploaded a photo, then clicked Save: "Saved.", no conflict message, price stored.
+- HEIC-named file → the HEIC message; published product without photos → the warning.
+- 390 px (iframe): no sideways scroll.
+- curl: JPEG and WebP uploads 201, mixed formats 422, no Origin 403; `/dev-media` serves the local
+  objects with their content type.
+
+### Your click-through (plan step 3 stop)
+
+**Restart your `astro dev`** first: the `/dev-media` route comes from a new integration in
+`astro.config.mjs`, so the server you had running before doesn't serve photos.
+
+In Chrome and Firefox (and Safari if you have one; that also answers whether Safari's canvas makes
+WebP — a Safari upload shows "· JPEG" next to the size if it doesn't): several real photos at once, a
+HEIC file, a non-image file, the 12-photo cap, move, remove, alt text, and a photo upload followed by a
+form save on the same page.
 
 ## Last 10 commits on products-in-d1 (before this one)
 
@@ -73,46 +117,6 @@ orders (docs/slice-2-report.md):
   staging (staging checklist, item 7).
 - Slice 1 found that uncached storefront pages are at or near 10 ms on the Free plan too (DECISIONS,
   2026-10-29: the site launches on Workers Paid).
-
-## Slice 3 status: plan waiting for approval, partial WIP committed
-
-- **Plan:** `docs/slice-3-plan.md`, commit `9ffff2a` (2026-10-30 18:25), status "draft, waiting for
-  approval".
-- **What needs your approval:** the plan as a whole, plus its 5 "Decisions needed":
-  1. Safari and WebP: (a) add a WebAssembly WebP encoder (`@jsquash/webp`, ~300 KB, admin only,
-     recommended) or (b) Safari users are told to use Chrome or Firefox;
-  2. staging photos in a separate bucket `karniktochi-media-staging` with r2.dev on (recommended), or
-     r2.dev on `karniktochi-media`;
-  3. production waits for `media.karniktochi.com` (recommended), or uses an r2.dev URL for now;
-  4. framing: (a) 4:5 frames showing the whole photo (`contain`, recommended), (b) crop to 4:5 at
-     upload, or (c) keep `cover` and shoot 4:5;
-  5. the numbers: 400/900/1800 px, WebP quality 0.82, 12 photos per product, file caps 200 KB / 600 KB /
-     1.5 MB and 3 MB per upload, photos under 400 px refused.
-- **Code written before approval:** the files in `86b371d` are dated 2026-10-31 14:16–14:19, after the
-  plan commit but before any approval. It covers part of plan steps 1–2:
-  - `migrations/0003_product_photos.sql` (the plan's table, unchanged);
-  - `src/lib/photos.ts` (add, remove, move, alt, list, URL and srcset builders), `src/lib/webp.ts`,
-    `src/lib/photo-sizes.ts`;
-  - deleting a draft also deletes its photos;
-  - the `MEDIA` R2 binding and `MEDIA_BASE_URL` in `wrangler.jsonc`, with regenerated types;
-  - tests: `webp.test.ts`, `photo-sizes.test.ts`, R2 in `test/d1.ts`.
-- **Not written yet:** `photos.test.ts`, the 0003 migration test, the upload endpoint, the dev-media route,
-  the admin Photos section, anything on the storefront, speed measurements, the staging environment.
-- **What the WIP does that the plan doesn't say:**
-  - `src/lib/photo-sizes.ts` is a new file, not in the plan's file list. The plan does say the size
-    calculation is shared with the browser script.
-  - `test/fixtures/`: small WebP, PNG and JPEG files made with Pillow, not mentioned in the plan.
-  - `addPhoto` doesn't delete R2 objects that a concurrent upload of the same photo is already using.
-    The plan doesn't cover that case.
-  - The `wrangler.jsonc` comment cites "docs/DECISIONS.md, 2026-10-31", but there is no such entry. It
-    also points to `src/dev/media-route.ts`, which doesn't exist yet.
-  - `MEDIA_BASE_URL` is set to `https://media.karniktochi.com` for every environment. That assumes
-    decision 3 goes the recommended way.
-- **Known problem in the WIP:** `npx astro check` reports 1 error at `src/lib/photos.ts:62`
-  (`Uint8Array<ArrayBufferLike>` not assignable to `BufferSource` in `crypto.subtle.digest`). It was left
-  unfixed, because slice 3 is on hold.
-- **Local database:** migration 0003 is applied to the local D1 only (2026-11-03). The remote database
-  doesn't have it.
 
 ## Finished
 
@@ -177,7 +181,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Slice 3 is on hold until you approve the plan (see "Slice 3 status" above).
+- Slice 3: steps 4–6 (storefront, speed, docs and staging config) after your click-through.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -271,34 +275,21 @@ orders (docs/slice-2-report.md):
 - Real phones (only the 390 px iframe).
 - The `/api/cart-lines` failure on first page load. Only a failure after the page had loaded was tested.
 
-## Test and build results (2026-11-03)
+## Test and build results (2026-11-24, products-in-d1 at this stop)
 
-Run in temporary detached worktrees of the committed branch heads (removed afterwards), not in the
-working checkout:
-
-- main at `b98643f`:
-  - `npx astro check`: 44 files, 0 errors, 0 warnings, 0 hints;
-  - `npm run build`: completes, check-hidden passes;
-  - `npm test`: 4 files, 39 tests, all passing.
-- products-in-d1 at `9ffff2a` (before the WIP commit):
-  - `npx astro check`: 81 files, 0 errors, 0 warnings, 1 hint;
-  - `npm run build`: completes, check-hidden passes;
-  - `npm test`: 19 files, 265 tests, all passing.
-- products-in-d1 at `86b371d` (WIP), in the working checkout:
-  - `npm test`: 21 files, 273 tests, all passing;
-  - `npx astro check`: 87 files, **1 error** (`src/lib/photos.ts:62`, see "Slice 3 status");
-  - `npm run build`: not run.
+- `npx astro check`: 0 errors, 0 warnings, 1 hint;
+- `npm test`: 25 files, 308 tests, all passing;
+- `npm run build`: completes, check-hidden passes; no `dev-media` in `dist/`;
+- `npm run check:admin-paths`: all 14 paths 403 (private, no-store) or 404.
+- The test for "D1 first, R2 second" was shown to fail with the order swapped in `removePhoto`.
 
 ## Open decisions for you
 
-1. **Approve, change or reject the slice 3 plan** (`docs/slice-3-plan.md`), including its 5 decisions
-   (listed under "Slice 3 status").
-2. **The WIP commit `86b371d`:** keep it as the start of slice 3 once the plan is approved, or drop it.
-   Also: should it be pushed? It isn't pushed yet.
-3. **Staging:** when to create the `karniktochi-staging` D1 database and turn on Workers Paid.
-4. **Remote database reset:** when to reset it relative to the first deploy of products-in-d1
+1. **Staging:** create the `karniktochi-staging` D1 database and the `karniktochi-media-staging` bucket,
+   and turn on Workers Paid right before it, after slice 3 is built.
+2. **Remote database reset:** when to reset it relative to the first deploy of products-in-d1
    (DECISIONS, 2026-10-29).
-5. The reasons marked "not recorded" in docs/DECISIONS.md.
+3. The reasons marked "not recorded" in docs/DECISIONS.md.
 
 ## To do
 
@@ -386,9 +377,11 @@ working checkout:
 - /api/stock returns every public variant (about 12 KB at 1,000 variants).
 - Purging can't be checked locally: local dev has no Workers Cache and no purge().
 - Chrome may show a page's old copy once after an edit (stale-while-revalidate in the browser cache).
-- No product photos yet; product pages and the cart show placeholders.
-- R2 and MEDIA_BASE_URL are configured in `wrangler.jsonc` (WIP), but the bucket doesn't exist on
-  Cloudflare, so a deploy of `86b371d` or later fails.
+- Photos can be uploaded in the admin, but the storefront doesn't show them yet (step 4).
+- R2 and MEDIA_BASE_URL are configured in `wrangler.jsonc`, but the bucket doesn't exist on Cloudflare,
+  so a deploy fails (intended until staging/production are set up).
+- Orphaned R2 objects: if an R2 delete fails after the D1 row is gone, the files stay (logged). No
+  cleanup tool.
 - main: at 390 px the home page scrolls about 4 px sideways, with or without the social links. It is
   probably the workshop postmark, which products-in-d1 clips (`.band-purple { overflow-x: clip; }`). Not
   checked on products-in-d1.
@@ -400,8 +393,9 @@ working checkout:
 - Scripts: `scripts/seed-perf.mjs` (SQL for a throwaway local performance database), `scripts/profile.mjs`
   (CPU profiles of the admin or storefront requests under wrangler dev)
 - Config key: `cache.enabled` in wrangler.jsonc
-- Migrations: `migrations/0002_products.sql`; `migrations/0003_product_photos.sql` (WIP, applied locally only)
-- Environment variables: `MEDIA_BASE_URL` (WIP). Binding: R2 `MEDIA` → `karniktochi-media` (WIP, bucket not created).
+- Migrations: `migrations/0002_products.sql`; `migrations/0003_product_photos.sql` (applied locally only)
+- Environment variables: `MEDIA_BASE_URL`. Binding: R2 `MEDIA` → `karniktochi-media` (bucket not created).
+- Endpoint: `POST /admin/products/{slug}/photos/`; dev only: `GET /dev-media/{key}`.
 - Endpoint: `GET /api/cart-lines`
 - Admin pages: `/admin/products/` (list, quick edit, archive demos), `/admin/products/new/`,
   `/admin/products/{slug}/` (edit), `/admin/products/{slug}/preview/`; `/admin/stock/` is now a 301 redirect.
