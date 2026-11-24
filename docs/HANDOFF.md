@@ -1,50 +1,67 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-24, slice 3 stop 2 (after the shop pages, plan
-step 4). Next: your click-through of the shop pages, then step 5 (speed) and step 6 (docs, staging config).
+Rewritten at the end of every task. Last updated: 2026-11-24, slice 3 final stop (all 6 plan steps done).
+Next: you turn on Workers Paid and set up staging ("Staging setup" below), then the staging checklist.
 
 ## Branches
 
 - `main`: `b98643f`, same as `origin/main`. Not deployed: the live site still runs `fa78e84`.
-- `products-in-d1`: pushed to origin at this stop. **Not deployable:** `wrangler.jsonc` names the R2
-  bucket `karniktochi-media`, which doesn't exist on Cloudflare, and no production deploy happens before
-  `media.karniktochi.com` exists (DECISIONS, 2026-10-30, recorded 2026-11-24).
-- Temporary worktrees: none.
-- **Workers Paid is turned on right before staging, after slice 3 is built** (user, 2026-11-24).
+- `products-in-d1`: pushed to origin at this stop. **Not deployable to production:** `wrangler.jsonc` names
+  the R2 bucket `karniktochi-media`, which doesn't exist on Cloudflare, and no production deploy happens
+  before `media.karniktochi.com` exists (DECISIONS, 2026-10-30, recorded 2026-11-24). Staging is configured
+  (`env.staging`) but its database id and bucket URL are placeholders until you create them.
+- Temporary worktrees: none. The `--host` dev server is stopped (you no longer need it).
+- **Workers Paid is turned on right before staging, after slice 3 is built** (user, 2026-11-24). Slice 3 is
+  now built.
 
 Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds nothing (DECISIONS,
 2026-10-30). The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev.
 
-## Slice 3 status: approved, steps 1–4 done, stopped for the shop click-through
+## Slice 3 status: built, all 6 steps done
 
-### Since stop 1
+### Since stop 2
 
-- **Broken admin thumbnail (your click-through):** not a code bug. Your `astro dev` (pid 11211) had been
-  running since before `/dev-media` was added to `astro.config.mjs`, so photo URLs got its 404 page. Evidence:
-  row `products/proba-santoku/ba8d36ce1e24a0ce` (webp, 400/900/1200, 1200×1200); all 3 objects in the local
-  R2 simulation; thumbnail URL `/dev-media/products/proba-santoku/ba8d36ce1e24a0ce-400.webp`: `404 text/html`
-  on the old server, `200 image/webp` after the restart, and the thumbnail loads (400×400) in Chrome.
-- **Dev server** now runs with `astro dev --background --host`. From an iPhone on the same Wi-Fi:
-  `http://10.43.96.72:4321/` (the Wi-Fi address; DHCP may change it — `astro dev status` shows the current
-  one). The admin Origin check accepts it: a same-origin POST via that address passes (the page's own 409
-  for a dummy action), a cross-site one gets 403.
-- **"Leave page?" warning** (`src/scripts/admin-unsaved.ts`, commit `f73a0fd`) on the product form while it
-  has unsaved changes, also before photo actions and links; never on the save itself or after a successful
-  save; a refused save starts dirty. Checked in Chrome with synthetic `beforeunload` events (a real dialog
-  would block the browser tools) and real Save clicks. **iOS Safari ignores `beforeunload`**, so there is no
-  warning on the iPhone.
-- **Step 4, shop pages** (commit `1063efe`): `Product.photos` (main photo on cards, all on the product page),
-  `ProductPhoto.astro` (img with srcset/sizes/width/height, or a placeholder with the product type), cards
-  (400/900, first listing row eager), product page gallery (main photo eager + high priority; thumbnails swap
-  it, links to the large rendition without JS), cart photo through `/api/cart-lines` (smallest rendition),
-  `og:image` (1800, only with an absolute base URL, so not in local dev), whole photo in the 4:5 frame
-  (`contain`) on cards, product page and cart. Tests: `catalog-photos.test.ts`, og:image in `photos.test.ts`.
-- **Checked by me in Chrome on :4321** (two temporary photos added to "Proba santoku" and removed after):
-  gallery with 3 photos, thumbnail swap (src, alt "…, снимка 3", aria-current); listing cards (photo on the
-  one with a photo, type placeholder on the rest); cart line photo (`contain`; your cart was restored);
-  390 px: product page, listing, home, category, cart and admin preview, no sideways scroll.
-- **Look to judge:** photos with a white background show beige bands in the frame (the frame is `--photo`).
-  If you prefer, the frame can be white when a photo is shown.
+- **Photo frame white** whenever a photo is shown (cards, product page, thumbnails, cart, admin); beige
+  `--photo` only for the no-photo placeholder (your decision, DECISIONS 2026-11-24; commit `3d40b3e`). Frames
+  with a photo get `.has-photo` (in the markup; in the cart, set by the script when the line has a photo).
+  Checked in Chrome by computed background: product page main photo, listing cards (all 23 local cards:
+  class matches photo presence), cart (photo line white, no-photo line beige; your cart restored), admin
+  thumbnail.
+- **Step 5, speed** (docs/slice-3-report.md; commits `d69c354`, `964d62e`): `seed-perf.mjs` adds photo rows
+  (3 per product, 12 on perf-450..452, none on perf-011/012); `profile.mjs` measures the product page with
+  12/3/no photos and the photo upload. **All customer pages under 10 ms JS+GC** (highest: listing 9.5 / 8.1).
+  **Upload: 18–22 ms** (admin; under the Workers Paid decision). The ~200 test uploads were removed again
+  (0 rows, 0 objects left in the throwaway bucket).
+- **Step 6, docs and staging config:** `env.staging` in `wrangler.jsonc` (Worker `karniktochi-staging`,
+  database `karniktochi-staging`, bucket `karniktochi-media-staging`, r2.dev `MEDIA_BASE_URL`); checked
+  that `CLOUDFLARE_ENV=staging` builds a config with those bindings, and that the normal build is unchanged
+  (`karniktochi`, production bindings). Nothing created on Cloudflare. CLAUDE.md (photos, staging, perf
+  scripts), plan status, this file.
+
+## Staging setup, in order (nothing done yet)
+
+Values marked **→ me** are not secrets; paste them in chat. I touch nothing remote until you say so for that
+step (your rule: never deploy, never touch a remote database or bucket).
+
+1. **You, dashboard:** turn on **Workers Paid** (Workers & Pages → Plans). Required before the admin runs on
+   Cloudflare (DECISIONS 2026-10-30).
+2. **You, dashboard:** Storage & Databases → D1 → **Create** `karniktochi-staging`. **→ me:** its Database ID.
+3. **You, dashboard:** R2 → **Create bucket** `karniktochi-media-staging`; its Settings → Public
+   Development URL (r2.dev) → **Enable**. **→ me:** the `https://pub-….r2.dev` URL.
+4. **You, dashboard:** Zero Trust → Access → Applications → **Add a self-hosted application** for
+   `karniktochi-staging.kalekcho.workers.dev`, path `admin` (covers `/admin/…`), policy: allow your email.
+   **→ me:** the team domain (`….cloudflareaccess.com`) and the application's AUD tag. Until these are set,
+   the staging admin answers 403 to everyone (safe default in `src/lib/access.ts`).
+5. **Me:** put the four values into `env.staging` in `wrangler.jsonc`, build, test, commit, push.
+6. **Me, after your go (remote database):** `npx wrangler d1 migrations apply karniktochi-staging --env
+   staging --remote` (0001–0003), then list its tables. Never the production database `karniktochi`.
+7. **You, terminal:** `! npx wrangler secret put RESEND_API_KEY --env staging` (you type the key; I never
+   handle it). If wrangler says the Worker doesn't exist yet, let it create it, or do this right after
+   step 8.
+8. **Me, after your go (deploy):** `CLOUDFLARE_ENV=staging npm run build && npx wrangler deploy`. This creates
+   the separate Worker `karniktochi-staging`; the live `karniktochi` Worker is untouched.
+9. **Staging checklist** below, you and me. Staging starts with an empty catalog: add products in the
+   admin (or ask me to load `seed-dev.sql` into the staging database).
 
 ### Steps 1–3 (stop 1)
 
@@ -88,28 +105,26 @@ Plan: `docs/slice-3-plan.md` (approved; decisions recorded there and in DECISION
 - curl: JPEG and WebP uploads 201, mixed formats 422, no Origin 403; `/dev-media` serves the local
   objects with their content type.
 
-### Your click-through (plan step 4 stop), desktop and iPhone at http://10.43.96.72:4321/
+### Click-throughs
 
-Products with several photos, one photo and none: home, /produkti/, a category, the product page (gallery,
-thumbnails, the size picker still working), other models and related cards, the cart, the admin preview.
-
-### Earlier click-through (plan step 3), still open if not done: in Chrome and Firefox (and Safari if you have one; that also answers whether Safari's canvas makes
+- Step 4 (shop pages): done by you on desktop (2026-11-24). Not on a phone (staging checklist).
+### Plan step 3 click-through, open if not done: in Chrome and Firefox (and Safari if you have one; that also answers whether Safari's canvas makes
 WebP — a Safari upload shows "· JPEG" next to the size if it doesn't): several real photos at once, a
 HEIC file, a non-image file, the 12-photo cap, move, remove, alt text, and a photo upload followed by a
 form save on the same page.
 
 ## Last 10 commits on products-in-d1 (before this one)
 
-- `86b371d` WIP slice 3: photo upload, unfinished, do not deploy
-- `9ffff2a` Slice 3 plan (draft, waiting for approval): product photos in R2
-- `a44e1e4` setStock moved to the shared test helper; check-admin-paths migrates its throwaway database and was shown to fail with a broken admin check
-- `034893d` Admin path spellings checked against the built Worker (all 403 or 404); check:admin-paths regression script; staging gets its own D1 database (decision)
-- `0be8015` Slice 2 step 10: checkout submit flat with order count (0/1k/5k) and accepted under Workers Paid; docs, open list before slice 3 and staging checklist; local test orders removed
-- `ab83564` Slice 2: admin CPU over 10 ms accepted (Workers Paid required, also for staging); storefront measured: checkout submit at ~15 ms; profile.mjs measures admin or storefront
-- `4f8e9cd` HANDOFF: slice 2 stop after step 9, decision needed on the admin speed target
-- `e93b471` Slice 2 step 9: admin speed measured (docs/slice-2-report.md); Sofia dates without Intl time zones; one read per product save; seed-perf and profile-admin scripts
-- `3068fa9` HANDOFF: slice 2 stop after step 8
-- `b0e635e` Slice 2 step 8: admin preview of any product (draft banner, cart off) and View on site links; product page body shared as ProductView
+- `964d62e` Slice 3 step 5: speed report (customer pages with photos all under 10 ms JS+GC; upload ~18-22 ms, admin); profile.mjs upload sends a 320x400 small rendition
+- `d69c354` Slice 3 step 5 (scripts): perf seed photo rows (3 per product, 12 on perf-450..452, none on perf-011/012); profile.mjs measures the photo upload and product pages with 12/3/no photos
+- `3d40b3e` Photo frame is white whenever a photo is shown (cards, product page, thumbnails, cart, admin); beige only for the no-photo placeholder
+- `dad5f45` HANDOFF: slice 3 stop 2 (shop pages ready for click-through); thumbnail investigation, iPhone address, leave-page warning
+- `1063efe` Slice 3 step 4: photos on the shop pages: cards (main photo, 400/900, first listing row eager), product page gallery (all photos, eager main, thumbnails swap it or link to the large rendition), cart line photo via /api/cart-lines, placeholder with the product type, og:image (absolute base only), whole photo in the 4:5 frame (contain)
+- `f73a0fd` Admin product form: 'leave page?' warning while the form has unsaved changes (also before photo actions and links); never on the save itself or after a successful save; a refused save starts dirty
+- `2b5b26a` HANDOFF: slice 3 stop 1 (admin Photos section ready for click-through)
+- `39fbbbb` Slice 3 step 3: photo messages shown in the Photos section; 'Not an image file' for non-images; spacing in the drop text
+- `0eb9781` Slice 3 step 3: admin Photos section (PhotoManager.astro, admin-photos.ts: browser resize to 400/900/1800, WebP 0.82 or JPEG 0.85 fallback, per-photo state and XHR progress, 12-photo cap, drop and pick), move/remove-with-confirmation/alt forms without JS, published-without-photos warning; placeholder moved out of ProductForm
+- `f729504` Slice 3 step 2: upload endpoint POST /admin/products/{slug}/photos/ (checks by magic bytes, sizes, proportions, caps, EXIF), photo move/remove/alt actions on the edit page with purging, dev-only /dev-media route (local R2 simulation), photos path in check:admin-paths
 
 ## Slice 2 status: finished
 
@@ -212,7 +227,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Slice 3: steps 5–6 (speed, docs and staging config) after your click-through.
+- Nothing. Slice 3 is built; staging setup is waiting for you (above).
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -306,17 +321,16 @@ orders (docs/slice-2-report.md):
 - Real phones (only the 390 px iframe).
 - The `/api/cart-lines` failure on first page load. Only a failure after the page had loaded was tested.
 
-## Test and build results (2026-11-24, products-in-d1 at this stop)
+## Test and build results (2026-11-24, products-in-d1 at the final stop)
 
 - `npx astro check`: 0 errors, 0 warnings, 1 hint (unused variable in scripts/profile.mjs, old);
 - `npm test`: 26 files, 314 tests, all passing;
 - `npm run build`: completes, check-hidden passes.
-- `check:admin-paths` was last run at stop 1 (no admin routes added since).
+- `check:admin-paths`: all 14 spellings 403 (private, no-store) or 404, including the photo endpoint.
 
 ## Open decisions for you
 
-1. **Staging:** create the `karniktochi-staging` D1 database and the `karniktochi-media-staging` bucket,
-   and turn on Workers Paid right before it, after slice 3 is built.
+1. **Staging:** Workers Paid, then "Staging setup" above.
 2. **Remote database reset:** when to reset it relative to the first deploy of products-in-d1
    (DECISIONS, 2026-10-29).
 3. The reasons marked "not recorded" in docs/DECISIONS.md.
@@ -329,15 +343,14 @@ orders (docs/slice-2-report.md):
 
 ## Open questions
 
-- **Open before slice 3:**
-  1. **Staging database: decided, not created.** Staging gets its own D1 database, `karniktochi-staging`
-     (DECISIONS, 2026-10-30). The production database `karniktochi` is not reset for staging, because the
-     live Worker still runs main, which expects the old schema. Still to do: create it, add a staging
-     environment to `wrangler.jsonc` bound to it, and apply all migrations to it. I haven't touched any
-     remote database.
+- **Open before staging:**
+  1. **Staging database and bucket: decided, configured, not created.** `env.staging` in `wrangler.jsonc`
+     binds `karniktochi-staging` and `karniktochi-media-staging`; the database id and r2.dev URL are
+     placeholders ("Staging setup", steps 2–5). The production database `karniktochi` is not reset for
+     staging, because the live Worker still runs main, which expects the old schema.
   2. **Workers Paid** must be active before any staging deploy (DECISIONS, 2026-10-30).
-  3. **Slice 3 setup:** the R2 binding `MEDIA` and `MEDIA_BASE_URL` are in `wrangler.jsonc` (WIP
-     `86b371d`). The bucket isn't created on Cloudflare. The plan is written and waiting for approval.
+  3. **Production photos:** no production deploy before `media.karniktochi.com` exists (bucket
+     `karniktochi-media` with that custom domain).
   4. **Checkout CPU:** why the first local measurement was ~15 ms and the rerun ~10 ms is not proven.
      Staging gives the real figure (checklist item 7).
   5. Small items, none blocking:
@@ -351,10 +364,10 @@ orders (docs/slice-2-report.md):
 - **Staging checklist** (things only Cloudflare can show), in order:
   1. Workers Paid must be active before the admin runs on Cloudflare, including staging (DECISIONS,
      2026-10-30).
-  2. Create the D1 database `karniktochi-staging`, bind it in a staging environment in `wrangler.jsonc`,
-     and apply migrations 0001–0002 to it (open item 1). Never apply them to `karniktochi`, the
-     production database. Then deploy products-in-d1 by hand with wrangler to that environment, never
-     from main.
+  2. Create the D1 database `karniktochi-staging` and the bucket `karniktochi-media-staging` (switch on its
+     r2.dev URL), fill in `env.staging`, and apply migrations 0001–0003 to the staging database ("Staging
+     setup" above). Never apply them to `karniktochi`, the production database. Then deploy products-in-d1
+     by hand with wrangler to that environment, never from main.
   3. `X-Robots-Tag: noindex, nofollow` present on the staging address.
   4. Cloudflare Access on /admin: without a login you get the Access page; with one, the middleware
      accepts the JWT; a cross-site admin POST still gets 403.
@@ -365,6 +378,13 @@ orders (docs/slice-2-report.md):
   7. Measure real checkout CPU on Cloudflare (POST /api/orders), plus the admin products list and product
      save, from Workers Logs or the dashboard, and compare with docs/slice-2-report.md.
   8. A real phone: product page, cart, checkout and the admin products list.
+  9. Photos: upload a photo in the staging admin; it appears in the admin and on the shop page from the
+     r2.dev address; removing it deletes its three files from the bucket.
+  10. Upload a photo taken on an iPhone from Safari in the admin; confirm it shows "· JPEG" (or WebP if Safari
+      can encode it), that EXIF/GPS is stripped, and that it appears on the shop page. Check the shop pages
+      on a real phone. (User, 2026-11-24.)
+  11. Photo upload CPU on Cloudflare (local: 18–22 ms, docs/slice-3-report.md) and the customer pages with
+      photos, from Workers Logs.
 
 - Remote database: decided, not to be migrated. At launch it is reset (all tables dropped, all migrations
   applied fresh); see the 2026-10-29 reset entry in docs/DECISIONS.md. Open: when to do the reset relative to
@@ -407,8 +427,9 @@ orders (docs/slice-2-report.md):
 - /api/stock returns every public variant (about 12 KB at 1,000 variants).
 - Purging can't be checked locally: local dev has no Workers Cache and no purge().
 - Chrome may show a page's old copy once after an edit (stale-while-revalidate in the browser cache).
-- R2 and MEDIA_BASE_URL are configured in `wrangler.jsonc`, but the bucket doesn't exist on Cloudflare,
-  so a deploy fails (intended until staging/production are set up).
+- R2 and MEDIA_BASE_URL are configured in `wrangler.jsonc`, but neither bucket exists on Cloudflare, so a
+  deploy fails (intended until staging/production are set up).
+- iOS Safari ignores the admin's "leave page?" warning (`beforeunload`).
 - Orphaned R2 objects: if an R2 delete fails after the D1 row is gone, the files stay (logged). No
   cleanup tool.
 - main: at 390 px the home page scrolls about 4 px sideways, with or without the social links. It is
@@ -419,8 +440,11 @@ orders (docs/slice-2-report.md):
 
 - Commands: `npm run seed:dev`, `npm run seed:orders`, `npm run unseed:orders` (local database only),
   `npm run check:admin-paths` (after a build)
-- Scripts: `scripts/seed-perf.mjs` (SQL for a throwaway local performance database), `scripts/profile.mjs`
-  (CPU profiles of the admin or storefront requests under wrangler dev)
+- Scripts: `scripts/seed-perf.mjs` (SQL for a throwaway local performance database, with photo rows),
+  `scripts/profile.mjs` (CPU profiles of the admin or storefront requests under wrangler dev, including the
+  photo upload)
+- Config: `env.staging` in wrangler.jsonc (Worker `karniktochi-staging`); `CLOUDFLARE_ENV=staging` selects it
+  at build time
 - Config key: `cache.enabled` in wrangler.jsonc
 - Migrations: `migrations/0002_products.sql`; `migrations/0003_product_photos.sql` (applied locally only)
 - Environment variables: `MEDIA_BASE_URL`. Binding: R2 `MEDIA` → `karniktochi-media` (bucket not created).

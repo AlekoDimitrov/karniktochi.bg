@@ -15,6 +15,8 @@ See also @AGENTS.md (dev server usage and Astro docs links).
 - **Stock**: the D1 `stock` table holds the live count per variant. Orders reserve stock; `cancelled`/`refused` release it. The CHECK constraints make overselling and stale status changes roll back.
 - **Emails** go through Resend (`src/lib/email.ts`, secret `RESEND_API_KEY`).
 - **/admin** is behind Cloudflare Access; `src/middleware.ts` also verifies the Access JWT (skipped in `astro dev`) and refuses non-GET admin requests from another origin (`src/lib/admin-origin.ts`). The admin is in English; everything customers see is Bulgarian. Product SQL for the admin is in `src/lib/admin-products.ts`, form parsing in `src/lib/admin-input.ts`.
+- **Product photos** live in **R2** (binding `MEDIA`; SQL and keys in `src/lib/photos.ts`, table `product_photos` in `migrations/0003_product_photos.sql`). The admin's browser resizes each photo to 400/900/1800 px WebP (JPEG where the canvas can't make WebP) and uploads it to `POST /admin/products/{slug}/photos/` (`src/lib/photo-upload.ts`). Customers load photos from `MEDIA_BASE_URL`, never through the Worker; `astro dev` serves the local bucket at `/dev-media` instead (`src/lib/media-base.ts`). Plan and decisions: docs/slice-3-plan.md.
+- **Staging** is a separate Worker, `karniktochi-staging`, with its own D1 database and R2 bucket (`env.staging` in `wrangler.jsonc`). It is built with `CLOUDFLARE_ENV=staging npm run build`, then deployed with `npx wrangler deploy`.
 - **Admin CPU**: admin requests and the checkout submit may exceed 10 ms CPU, so Workers Paid must be active before the admin runs on Cloudflare (docs/DECISIONS.md, 2026-10-30).
 
 ## Commands
@@ -25,7 +27,8 @@ See also @AGENTS.md (dev server usage and Astro docs links).
 - `npm test`: unit tests (vitest; stock tests run against an in-memory D1 via Miniflare)
 - `npx astro check`: type check
 - `npm run generate-types`: regenerate `worker-configuration.d.ts` from `wrangler.jsonc`
-- `npx wrangler d1 migrations apply karniktochi --local` (or `--remote`): apply D1 migrations
+- `npx wrangler d1 migrations apply karniktochi --local` (or `--remote`): apply D1 migrations (staging: `npx wrangler d1 migrations apply karniktochi-staging --env staging --remote`)
+- `node scripts/seed-perf.mjs` and `node scripts/profile.mjs admin|storefront`: speed measurement on a throwaway local database (docs/slice-3-report.md)
 - Local secrets and var overrides go in `.dev.vars` (gitignored; see `.dev.vars.example`)
 
 Do not deploy unless explicitly asked.

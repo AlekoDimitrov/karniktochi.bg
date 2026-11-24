@@ -2,6 +2,8 @@
 
 Status: **approved** (decisions made 2026-10-30, recorded 2026-11-24; see "Decisions" at the end), on
 `products-in-d1`. Early work from before the approval (`86b371d`) is kept and adapted to the decisions.
+**Built: all 6 steps done (2026-11-24).** Speed results in docs/slice-3-report.md. Staging is configured in
+`wrangler.jsonc` (`env.staging`) but not created on Cloudflare.
 
 ## What slice 3 delivers
 

@@ -54,5 +54,47 @@
 		// Where customers load product photos from: the bucket's custom domain, without a trailing slash.
 		// `astro dev` uses /dev-media instead, served from the local bucket (src/lib/media-base.ts).
 		"MEDIA_BASE_URL": "https://media.karniktochi.com"
+	},
+	// Staging: a separate Worker (karniktochi-staging, on workers.dev) with its own database and bucket, so it
+	// never touches production data (DECISIONS 2026-10-30). Written, NOT created on Cloudflare yet: the two
+	// REPLACE values come from the dashboard (docs/HANDOFF.md, "Staging setup"). Build and deploy with
+	//   CLOUDFLARE_ENV=staging npm run build && npx wrangler deploy
+	// (the build picks the environment; wrangler deploy then uses the config the build wrote).
+	// Wrangler doesn't copy vars, secrets, d1_databases or r2_buckets into an environment, so they are
+	// repeated here in full; assets, observability and cache are inherited.
+	"env": {
+		"staging": {
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "karniktochi-staging",
+					// The id printed by `npx wrangler d1 create karniktochi-staging`.
+					"database_id": "REPLACE-with-karniktochi-staging-database-id",
+					"migrations_dir": "migrations"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "MEDIA",
+					"bucket_name": "karniktochi-media-staging"
+				}
+			],
+			"secrets": {
+				"required": ["RESEND_API_KEY"]
+			},
+			"vars": {
+				"ENABLE_BANK_TRANSFER": "false",
+				"BANK_IBAN": "",
+				"BANK_BIC": "",
+				"BANK_HOLDER": "",
+				"SHOP_NOTIFY_EMAIL": "team@karniktochi.com",
+				"EMAIL_FROM": "Карник Точи <porachki@karniktochi.com>",
+				// The Access application that protects the staging Worker's /admin.
+				"ACCESS_TEAM_DOMAIN": "",
+				"ACCESS_AUD": "",
+				// The bucket's public r2.dev address (R2 → karniktochi-media-staging → Settings → Public access).
+				"MEDIA_BASE_URL": "https://REPLACE-with-the-staging-bucket.r2.dev"
+			}
+		}
 	}
 }
