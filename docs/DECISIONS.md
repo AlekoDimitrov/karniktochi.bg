@@ -81,3 +81,19 @@ Reason: the user accepted it after a check that its CPU doesn't grow with the or
 
 **2026-10-30: Staging uses its own D1 database (karniktochi-staging). The production database is not reset for staging, because the live Worker still runs main, which expects the old schema.**
 Reason: as stated. The database is not created yet.
+
+**2026-10-30 (recorded 2026-11-24): Slice 3 photo choices (see docs/slice-3-plan.md, "Decisions").**
+- Safari/WebP: checked in a real Safari. If canvas can't encode WebP, no encoder library: the browser falls
+  back to JPEG (same three sizes, quality 0.85, re-encoded so EXIF/GPS is dropped). The server accepts WebP
+  or JPEG, checked by magic bytes.
+- Staging photos use their own bucket, `karniktochi-media-staging` (not created yet).
+- No production deploy until `media.karniktochi.com` exists.
+- Framing: the whole photo inside the 4:5 frame on a light background, no cropping, on cards, the product
+  page and the cart.
+- Numbers: 400 / 900 / 1,800 px, WebP quality 0.82, 12 photos per product, file limits 200 KB / 600 KB /
+  1.5 MB and 3 MB per upload, photos under 400 px refused.
+- The early photo work (`86b371d`) is kept. Local dev uses only wrangler's local R2 simulation.
+Reason: the user's answers to the plan's decisions.
+
+**2026-11-24: Workers Paid is turned on right before staging, after slice 3 is built.**
+Reason: the user's choice.

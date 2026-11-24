@@ -1,6 +1,7 @@
 # Slice 3 plan: product photos
 
-Status: **draft, waiting for approval** (2026-10-30, on `products-in-d1`). No code is written for it yet.
+Status: **approved** (decisions made 2026-10-30, recorded 2026-11-24; see "Decisions" at the end), on
+`products-in-d1`. Early work from before the approval (`86b371d`) is kept and adapted to the decisions.
 
 ## What slice 3 delivers
 
@@ -29,14 +30,14 @@ choices given in the brief are fixed. This plan proposes the details and lists w
     - Decision 2 below.
   - **The built Worker run locally** (wrangler dev, used for speed measurements and the admin path check)
     has no `/dev-media` route. Photos don't load there, but the HTML and the CPU times are the same.
-- **Object keys:** `products/{productId}/{hash}-{size}.webp`.
+- **Object keys:** `products/{productId}/{hash}-{size}.webp`, or `.jpg` for a JPEG photo (decision 1).
   - `{hash}` is the first 16 hex characters of the SHA-256 of the largest rendition, computed on the
     server.
   - `{size}` is the long side in pixels: 400, 900 or 1800, or the photo's own long side if it is smaller.
   - The product id is in the key, so the same picture on two products gives two separate objects. Removing
     it from one product can't break the other.
   - Keys never change, and the objects are stored with
-    `Cache-Control: public, max-age=31536000, immutable` and `Content-Type: image/webp`.
+    `Cache-Control: public, max-age=31536000, immutable` and `Content-Type: image/webp` (or `image/jpeg`).
 
 ## Admin: the Photos section
 
@@ -77,7 +78,9 @@ For each picked file, before anything is uploaded:
    the long side)." Resizing uses a canvas, stepping down by halves for sharpness.
 3. **Encode as WebP** with `canvas.toBlob(…, 'image/webp', 0.82)`.
    - The canvas holds only pixels, so EXIF data, GPS position and camera details are gone.
-   - If the result isn't actually WebP (`blob.type`), the photo stops with an error (decision 1).
+   - If the result isn't actually WebP (`blob.type`, as in Safari), all renditions of that photo are
+     encoded as **JPEG** instead, with `canvas.toBlob(…, 'image/jpeg', 0.85)`: same three sizes, also
+     re-encoded from the canvas, so EXIF and GPS are dropped too (decision 1). No encoder library.
 4. **Upload** the 2–3 renditions and the alt text in one multipart request.
 
 Browsers and iPhone photos:
@@ -87,8 +90,8 @@ Browsers and iPhone photos:
   "This browser can't read this file (HEIC?). Open it in Safari, or export it as JPEG."
 - **Safari (macOS and iOS 17+):** decodes HEIC.
   - As far as I know, Safari can't encode WebP from a canvas: `toBlob` quietly returns PNG instead.
-  - I haven't verified this on the current Safari. Step 3 checks it in a real Safari.
-  - If it's true, Safari can read iPhone photos but can't produce WebP without help. See decision 1.
+  - Step 3 checks this in a real Safari. Either way Safari works: without WebP it uploads JPEG
+    (decision 1).
 - **iPhone file picker:** in its default "Most Compatible" setting, iOS often hands a web page a JPEG
   instead of the HEIC, so the HEIC problem is mainly a Mac and AirDrop problem.
 - **Any file the browser can't decode:** shows the error above with the file name, and the other photos
@@ -104,8 +107,11 @@ Browsers and iPhone photos:
   1. the product exists;
   2. the request is at most 3 MB, has 1–3 files, and each file is within its cap: 400 → 200 KB,
      900 → 600 KB, 1800 → 1.5 MB;
-  3. each file is WebP by its bytes, not its name: `RIFF` at offset 0, `WEBP` at offset 8, and a `VP8 `,
-     `VP8L` or `VP8X` chunk. Its width and height are read from that header, never from the client;
+  3. each file is WebP or JPEG by its bytes, not its name: for WebP `RIFF` at offset 0, `WEBP` at offset 8,
+     and a `VP8 `, `VP8L` or `VP8X` chunk; for JPEG `FF D8 FF` and a frame header (SOF). Its width and
+     height are read from that header, never from the client. All renditions of one photo are the same
+     format. A file carrying EXIF data (a JPEG APP1 `Exif` segment, or a WebP with the EXIF flag) is refused,
+     so location data can't be stored even by a client that skips the canvas;
   4. the renditions have the expected long sides (400, 900, the largest) and the same aspect ratio;
   5. the product has fewer than 12 photos;
   6. this photo isn't on this product already, judged by its hash.
@@ -134,7 +140,8 @@ CREATE TABLE product_photos (
   id TEXT PRIMARY KEY,
   product_id TEXT NOT NULL REFERENCES products (id),
   position INTEGER NOT NULL CHECK (position >= 0),      -- 0 is the main photo; kept 0..n-1 without gaps
-  key TEXT NOT NULL,                                    -- products/{productId}/{hash}; renditions add -{size}.webp
+  key TEXT NOT NULL,                                    -- products/{productId}/{hash}; renditions add -{size}.webp|.jpg
+  format TEXT NOT NULL CHECK (format IN ('webp', 'jpeg')), -- all renditions of a photo share it
   sizes TEXT NOT NULL,                                  -- long sides stored, e.g. '400,900,1800'
   alt TEXT NOT NULL DEFAULT '',
   width INTEGER NOT NULL CHECK (width > 0),             -- of the largest rendition
@@ -145,6 +152,8 @@ CREATE INDEX product_photos_product ON product_photos (product_id, position);
 CREATE UNIQUE INDEX product_photos_key ON product_photos (product_id, key);
 ```
 
+- **`format`** follows from decision 1 (JPEG fallback). 0003 has never been applied to a remote database,
+  so the column goes into 0003 itself; the local database re-applies 0003.
 - **`sizes` is one column more than the brief listed.** A small photo has fewer or smaller renditions, and
   the storefront needs to know which ones exist to build `srcset`.
 - **Position has no unique index.** SQLite checks uniqueness row by row during an UPDATE, so swapping two
@@ -337,28 +346,19 @@ The working method is the same as slice 2:
 - **DECISIONS** plans production deploys after slice 3, which collides with the missing domain
   (decision 3).
 
-## Decisions needed
+## Decisions
 
-1. **Safari and WebP.** If Safari can't encode WebP (checked in step 3), either:
-   - **(a)** add a WebP encoder compiled to WebAssembly (e.g. `@jsquash/webp`, about 300 KB), loaded only
-     on the admin edit page and used only when the browser's own encoder doesn't give WebP. Every browser
-     then works, including Safari with HEIC. **Recommended.**
-   - **(b)** no new dependency. Safari shows "Use Chrome or Firefox to upload photos". HEIC files then
-     have to be exported as JPEG first.
-2. **Staging photos:** a separate bucket, `karniktochi-media-staging`, with its r2.dev URL switched on,
-   like the separate staging database. **Recommended.** The alternative is r2.dev on
-   `karniktochi-media` itself.
-3. **Production and the domain:** production photos need `media.karniktochi.com`. Either production
-   waits for the domain (**recommended**), or it uses an r2.dev URL temporarily (rate-limited, not cached,
-   not meant for production).
-4. **Framing in the shop:** the current frames are 4:5 and crop with `object-fit: cover`. Either:
-   - **(a)** keep the 4:5 frames, but show the whole photo (`contain`) on the light `--photo` background,
-     so a long knife is never cut off. **Recommended.**
-   - **(b)** crop to 4:5 (centre) in the browser at upload;
-   - **(c)** keep cover, and you shoot 4:5 photos.
-5. **The numbers:**
-   - sizes 400 / 900 / 1800 px on the long side, WebP quality 0.82;
-   - at most 12 photos per product;
-   - file caps 200 KB / 600 KB / 1.5 MB, and 3 MB per upload;
-   - photos smaller than 400 px refused.
-   - Confirm or change.
+Made by the user on 2026-10-30, recorded here on 2026-11-24 (also in docs/DECISIONS.md).
+
+1. **Safari and WebP:** check in a real Safari whether canvas can encode WebP. If not, no encoder library:
+   the browser falls back to JPEG (same three sizes, quality 0.85, re-encoded from the canvas so EXIF/GPS
+   is dropped). The server accepts WebP or JPEG, checked by magic bytes.
+2. **Staging photos:** their own bucket, `karniktochi-media-staging` (not created yet).
+3. **Production:** no production deploy until `media.karniktochi.com` exists.
+4. **Framing:** the whole photo inside the 4:5 frame on a light background, no cropping, on cards, the
+   product page and the cart.
+5. **Numbers:** 400 / 900 / 1,800 px, WebP quality 0.82, 12 photos per product, file limits 200 KB /
+   600 KB / 1.5 MB and 3 MB per upload, photos under 400 px refused.
+
+The early photo work in `86b371d` is kept. Local dev uses only wrangler's local R2 simulation, never a
+remote bucket. Workers Paid is turned on right before staging, after slice 3 is built.

@@ -4,6 +4,11 @@ Rewritten at the end of every task. Last updated: 2026-11-03: both branches buil
 worktrees, the unfinished slice 3 code committed as WIP (`86b371d`), and migration 0003 applied to the local
 database only. Next: your approval of docs/slice-3-plan.md. Nothing more is built for slice 3 until then.
 
+## Update 2026-11-24 (in progress; this file is rewritten at the next stop)
+
+- Slice 3 approved (decisions recorded in docs/slice-3-plan.md and DECISIONS). Building it now.
+- **Workers Paid is turned on right before staging, after slice 3 is built** (user, 2026-11-24).
+
 ## Branches
 
 - `main`: `b98643f`, clean, same as `origin/main`. Not deployed: the live site still runs `fa78e84`.
