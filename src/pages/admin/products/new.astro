@@ -39,7 +39,7 @@ if (Astro.request.method === 'POST') {
   <p class="crumb"><a href="/admin/products/">← Products</a></p>
   <h1 class="page-h1">New product</h1>
   <p class="muted">The address (slug) is made from the name when you first save, and never changes after that.</p>
-  <ProductForm raw={raw} errors={errors} ordered={new Set()} submitLabel="Create product" />
+  <ProductForm raw={raw} errors={errors} ordered={new Set()} submitLabel="Create product" unsaved={Astro.request.method === 'POST'} />
 
   <section class="pf-section pf-photos" aria-labelledby="photos-title">
     <h2 id="photos-title">Photos</h2>

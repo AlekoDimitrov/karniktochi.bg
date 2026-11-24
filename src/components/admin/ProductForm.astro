@@ -15,8 +15,10 @@ interface Props {
   /** Extra messages per size row (e.g. stock changed by an order), keyed by row index. */
   rowNotes?: Record<number, string>;
   submitLabel: string;
+  /** The page shows a refused save: the form holds typing that isn't saved yet (for the leave-page warning). */
+  unsaved?: boolean;
 }
-const { raw, errors, ordered, rowNotes = {}, submitLabel } = Astro.props;
+const { raw, errors, ordered, rowNotes = {}, submitLabel, unsaved = false } = Astro.props;
 const f = raw.fields;
 
 // Spare empty rows, so sizes can be added without JavaScript (the script removes them and adds on demand).
@@ -37,7 +39,7 @@ const errorCount = Object.keys(errors).length;
   </div>
 )}
 
-<form method="post" class="product-form" novalidate>
+<form method="post" class="product-form" novalidate data-unsaved={unsaved ? '' : undefined}>
   <input type="hidden" name="action" value="save" />
   <input type="hidden" name="updated_at" value={raw.expectedUpdatedAt} />
 
@@ -235,6 +237,9 @@ const errorCount = Object.keys(errors).length;
 
 <script>
   import { enhanceSizes } from '../../scripts/admin-variants';
-  enhanceSizes(document.querySelector<HTMLFormElement>('.product-form'));
+  import { warnOnUnsaved } from '../../scripts/admin-unsaved';
+  const form = document.querySelector<HTMLFormElement>('.product-form');
+  enhanceSizes(form);
+  warnOnUnsaved(form, { startDirty: form?.hasAttribute('data-unsaved') });
   document.getElementById('form-errors')?.focus();
 </script>

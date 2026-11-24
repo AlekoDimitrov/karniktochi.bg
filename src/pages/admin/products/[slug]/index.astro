@@ -33,6 +33,8 @@ let errors: FieldErrors = {};
 let rowNotes: Record<number, string> = {};
 let problem = '';
 let photoProblem = '';
+// A save that comes back here (not redirected) was refused: the form shows unsaved typing.
+let saveRefused = false;
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
@@ -55,6 +57,7 @@ if (Astro.request.method === 'POST') {
     if (result.ok) return Astro.redirect(`/admin/products/?deleted=${encodeURIComponent(product.name.slice(0, 120))}`, 303);
     problem = result.error;
   } else if (action === 'save') {
+    saveRefused = true;
     const parsed = parseProductForm(form, new Set(product.variants.filter((v) => v.status === 'active').map((v) => v.id)));
     raw = parsed.raw;
     if (!parsed.ok) {
@@ -135,7 +138,7 @@ const photos = await listPhotos(env.DB, id);
     </div>
   )}
 
-  <ProductForm raw={raw} errors={errors} ordered={orderedVariantIds} rowNotes={rowNotes} submitLabel="Save" />
+  <ProductForm raw={raw} errors={errors} ordered={orderedVariantIds} rowNotes={rowNotes} submitLabel="Save" unsaved={saveRefused} />
 
   <PhotoManager
     productId={product.id}
