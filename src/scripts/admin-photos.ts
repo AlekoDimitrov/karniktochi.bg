@@ -81,6 +81,8 @@ async function process(file: File, setState: (s: string) => void): Promise<{ for
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
   } catch {
+    const heic = /\.(heic|heif)$/i.test(file.name) || /heic|heif/i.test(file.type);
+    if (!heic && file.type && !file.type.startsWith('image/')) throw new PhotoError('Not an image file.');
     throw new PhotoError('This browser can’t read this file (HEIC?). Open it in Safari, or export it as JPEG.');
   }
   try {

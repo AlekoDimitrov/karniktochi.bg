@@ -447,7 +447,7 @@ input[aria-invalid='true'] { border-color: #b3261e; }
 .ph-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
 .ph-head h2 { padding: 0; }
 .admin-msg--warn { margin: 0; background: #fff4d6; color: #5c4300; }
-.ph-nojs { margin: 0; }
+.ph-nojs, .ph-msg { margin: 0; }
 .ph-drop { border: 2px dashed rgba(23, 35, 31, 0.45); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 6px; background: var(--ground); }
 .ph-drop[hidden] { display: none; }
 .ph-drop--over { border-color: var(--ink); background: var(--sand); }

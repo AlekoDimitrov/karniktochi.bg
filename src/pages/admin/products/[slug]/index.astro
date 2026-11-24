@@ -32,6 +32,7 @@ let raw: RawProductForm = productToForm(product);
 let errors: FieldErrors = {};
 let rowNotes: Record<number, string> = {};
 let problem = '';
+let photoProblem = '';
 
 if (Astro.request.method === 'POST') {
   const form = await Astro.request.formData();
@@ -40,7 +41,7 @@ if (Astro.request.method === 'POST') {
   if (isPhotoAction(action)) {
     const result = await handlePhotoAction(env.DB, env.MEDIA, purger, product, action, form);
     if (result.ok) return Astro.redirect(`${self}?msg=${action}#photos`, 303);
-    problem = result.error;
+    photoProblem = result.error;
   } else if (action === 'restore') {
     const result = await restoreVariant(env.DB, id, String(form.get('variant') ?? ''));
     if (result.ok) {
@@ -100,7 +101,10 @@ const messages: Record<string, string> = {
   'photo-remove': 'Photo removed.',
   'photo-alt': 'Alt text saved.',
 };
-const msg = messages[Astro.url.searchParams.get('msg') ?? ''];
+const msgKey = Astro.url.searchParams.get('msg') ?? '';
+// Photo messages are shown in the Photos section, where the page scrolls to.
+const msg = msgKey.startsWith('photo-') ? undefined : messages[msgKey];
+const photoMsg = msgKey.startsWith('photo-') ? messages[msgKey] : undefined;
 const archived = product.variants.filter((v) => v.status === 'archived');
 // Linked on the site only when customers can see it there (as saved, not as typed in an unsaved form).
 const onSite =
@@ -140,6 +144,8 @@ const photos = await listPhotos(env.DB, id);
     photos={photos}
     mediaBase={mediaBase(env)}
     confirmId={Astro.url.searchParams.get('confirm-photo')}
+    notice={photoMsg}
+    problem={photoProblem}
   />
 
   {archived.length > 0 && (

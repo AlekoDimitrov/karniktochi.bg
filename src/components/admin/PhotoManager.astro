@@ -14,9 +14,12 @@ interface Props {
   mediaBase: string;
   /** The photo whose removal is being confirmed (?confirm-photo=). */
   confirmId?: string | null;
+  /** The result of the last photo action, shown at the top of the section. */
+  notice?: string;
+  problem?: string;
 }
 
-const { productId, productName, published, photos, mediaBase, confirmId } = Astro.props;
+const { productId, productName, published, photos, mediaBase, confirmId, notice, problem } = Astro.props;
 const self = `/admin/products/${productId}/`;
 const thumb = (p: Photo) => {
   const side = photoSide(p, 400);
@@ -30,6 +33,9 @@ const altHint = 'Describe the photo in Bulgarian, e.g. “Гюто Шибата 
     <span class="muted" data-photo-count>{photos.length} of {MAX_PHOTOS}</span>
   </div>
 
+  {notice && <p class="admin-msg ph-msg" role="status">{notice}</p>}
+  {problem && <p class="admin-msg admin-msg--error ph-msg" role="alert">{problem} <a href={`${self}#photos`}>Reload</a></p>}
+
   {published && photos.length === 0 && (
     <p class="admin-msg admin-msg--warn" data-photo-warning>Published without photos: customers see a placeholder.</p>
   )}
@@ -38,7 +44,7 @@ const altHint = 'Describe the photo in Bulgarian, e.g. “Гюто Шибата 
 
   <div class="ph-drop" data-photo-drop hidden>
     <p class="ph-drop__text">
-      <strong>Drop photos here</strong>, or
+      <strong>Drop photos here</strong>, or{' '}
       <label class="ph-drop__pick">
         choose files
         <input class="visually-hidden" type="file" accept="image/*" multiple data-photo-input />
