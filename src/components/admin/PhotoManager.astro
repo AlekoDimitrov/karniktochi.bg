@@ -1,0 +1,125 @@
+---
+// The Photos section of the admin edit page, below the product form (one HTML form can't hold another).
+// Move, remove and alt text are plain forms posted to the edit page, so they work without JavaScript.
+// Adding photos needs JavaScript: src/scripts/admin-photos.ts resizes and encodes them in the browser and
+// posts each one to /admin/products/{slug}/photos/.
+import { ALT_MAX, MAX_PHOTOS } from '../../lib/photo-sizes';
+import { photoSide, photoUrl, renditionSize, type Photo } from '../../lib/photos';
+
+interface Props {
+  productId: string;
+  productName: string;
+  published: boolean;
+  photos: Photo[];
+  mediaBase: string;
+  /** The photo whose removal is being confirmed (?confirm-photo=). */
+  confirmId?: string | null;
+}
+
+const { productId, productName, published, photos, mediaBase, confirmId } = Astro.props;
+const self = `/admin/products/${productId}/`;
+const thumb = (p: Photo) => {
+  const side = photoSide(p, 400);
+  return { src: photoUrl(mediaBase, p, side), ...renditionSize(p, side) };
+};
+const altHint = 'Describe the photo in Bulgarian, e.g. “Гюто Шибата 210 мм, острие отблизо”. Empty: the shop uses the product name.';
+---
+<section class="pf-section pf-photos" id="photos" aria-labelledby="photos-title" data-photos data-product={productId} data-media-base={mediaBase} data-count={photos.length}>
+  <div class="ph-head">
+    <h2 id="photos-title">Photos</h2>
+    <span class="muted" data-photo-count>{photos.length} of {MAX_PHOTOS}</span>
+  </div>
+
+  {published && photos.length === 0 && (
+    <p class="admin-msg admin-msg--warn" data-photo-warning>Published without photos: customers see a placeholder.</p>
+  )}
+
+  <p class="muted ph-nojs" data-photo-nojs>Adding photos needs JavaScript. Moving, removing and alt text work without it.</p>
+
+  <div class="ph-drop" data-photo-drop hidden>
+    <p class="ph-drop__text">
+      <strong>Drop photos here</strong>, or
+      <label class="ph-drop__pick">
+        choose files
+        <input class="visually-hidden" type="file" accept="image/*" multiple data-photo-input />
+      </label>
+    </p>
+    <p class="muted ph-drop__hint">
+      They are resized in your browser to 400, 900 and 1800 px and uploaded one at a time, after the existing
+      photos. At most {MAX_PHOTOS} photos; each at least 400 px on its long side.
+    </p>
+    <p class="muted ph-drop__full" data-photo-full hidden>This product has {MAX_PHOTOS} photos, the most it can have. Remove one to add another.</p>
+  </div>
+
+  <ol class="ph-queue" data-photo-queue aria-live="polite"></ol>
+
+  <ol class="ph-list" data-photo-list>
+    {photos.map((p, i) => {
+      const t = thumb(p);
+      return (
+        <li class="ph-item" id={`photo-${p.id}`} data-photo={p.id}>
+          <img class="ph-item__img" src={t.src} width={t.width} height={t.height} alt="" loading="lazy" />
+          <div class="ph-item__body">
+            <p class="ph-item__title">
+              <strong>Photo {i + 1}</strong>
+              {i === 0 && <span class="badge">Main photo</span>}
+              <span class="muted">{p.width} × {p.height}{p.format === 'jpeg' ? ' · JPEG' : ''}</span>
+            </p>
+            <form method="post" action={self} class="ph-alt">
+              <input type="hidden" name="action" value="photo-alt" />
+              <input type="hidden" name="photo" value={p.id} />
+              <label class="pf-field">
+                <span>Alt text <span class="visually-hidden">for photo {i + 1}</span></span>
+                <input name="alt" value={p.alt} maxlength={ALT_MAX} placeholder={productName} aria-describedby={`alt-hint-${p.id}`} />
+              </label>
+              <button class="btn btn--outline btn--small" type="submit">Save alt text<span class="visually-hidden"> for photo {i + 1}</span></button>
+              <p class="muted pf-hint" id={`alt-hint-${p.id}`}>{altHint}</p>
+            </form>
+            <div class="ph-item__actions">
+              {i > 0 && (
+                <form method="post" action={self}>
+                  <input type="hidden" name="action" value="photo-move" />
+                  <input type="hidden" name="photo" value={p.id} />
+                  <input type="hidden" name="direction" value="up" />
+                  <button class="btn btn--outline btn--small" type="submit">Move up<span class="visually-hidden"> photo {i + 1}</span></button>
+                </form>
+              )}
+              {i < photos.length - 1 && (
+                <form method="post" action={self}>
+                  <input type="hidden" name="action" value="photo-move" />
+                  <input type="hidden" name="photo" value={p.id} />
+                  <input type="hidden" name="direction" value="down" />
+                  <button class="btn btn--outline btn--small" type="submit">Move down<span class="visually-hidden"> photo {i + 1}</span></button>
+                </form>
+              )}
+              {confirmId === p.id ? (
+                <div class="admin-confirm" role="alertdialog" aria-labelledby={`remove-${p.id}`}>
+                  <p id={`remove-${p.id}`}><strong>Remove photo {i + 1}?</strong> Its files are deleted. This can’t be undone.</p>
+                  <form method="post" action={self} class="admin-confirm__actions">
+                    <input type="hidden" name="action" value="photo-remove" />
+                    <input type="hidden" name="photo" value={p.id} />
+                    <button class="btn btn--accent" type="submit">Yes, remove photo {i + 1}</button>
+                    <a href={`${self}#photo-${p.id}`}>Cancel</a>
+                  </form>
+                </div>
+              ) : (
+                <a class="ph-item__remove" href={`${self}?confirm-photo=${encodeURIComponent(p.id)}#photo-${p.id}`}>
+                  Remove…<span class="visually-hidden"> photo {i + 1}</span>
+                </a>
+              )}
+            </div>
+          </div>
+        </li>
+      );
+    })}
+  </ol>
+  <p class="muted ph-reload" data-photo-reload hidden>
+    <a href={`${self}#photos`}>Reload the page</a> to move or remove the new photos or set their alt text. Save the
+    product form first if you changed it.
+  </p>
+</section>
+
+<script>
+  import { enhancePhotos } from '../../scripts/admin-photos';
+  enhancePhotos(document.querySelector<HTMLElement>('[data-photos]'));
+</script>

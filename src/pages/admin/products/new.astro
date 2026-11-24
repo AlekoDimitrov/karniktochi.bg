@@ -40,4 +40,9 @@ if (Astro.request.method === 'POST') {
   <h1 class="page-h1">New product</h1>
   <p class="muted">The address (slug) is made from the name when you first save, and never changes after that.</p>
   <ProductForm raw={raw} errors={errors} ordered={new Set()} submitLabel="Create product" />
+
+  <section class="pf-section pf-photos" aria-labelledby="photos-title">
+    <h2 id="photos-title">Photos</h2>
+    <p class="muted">Save the product first, then add photos.</p>
+  </section>
 </AdminLayout>

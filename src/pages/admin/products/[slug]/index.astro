@@ -2,6 +2,7 @@
 import * as workers from 'cloudflare:workers';
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import ProductForm from '../../../../components/admin/ProductForm.astro';
+import PhotoManager from '../../../../components/admin/PhotoManager.astro';
 import { centsToInput, parseProductForm, productToForm, type FieldErrors, type RawProductForm } from '../../../../lib/admin-input';
 import {
   deleteDraftProduct,
@@ -14,6 +15,8 @@ import { categoryLabel, productStatusLabel } from '../../../../lib/admin-labels'
 import { productPurgeTags, purgerFrom, purgeTags, stockPurgeTags } from '../../../../lib/cache-purge';
 import { visibility } from '../../../../lib/products';
 import { handlePhotoAction, isPhotoAction } from '../../../../lib/photo-upload';
+import { listPhotos } from '../../../../lib/photos';
+import { mediaBase } from '../../../../lib/media-base';
 
 export const prerender = false;
 
@@ -104,6 +107,7 @@ const onSite =
   product.status === 'published' && product.variants.some((v) => v.status === 'active') && (visibility.includeDemo || !product.isDemo);
 const canDelete = product.status === 'draft' && !(await productHasOrders(env.DB, id));
 const confirmDelete = canDelete && Astro.url.searchParams.get('confirm') === 'delete';
+const photos = await listPhotos(env.DB, id);
 ---
 <AdminLayout title={`Edit: ${product.name}`} active="products">
   <p class="crumb"><a href="/admin/products/">← Products</a></p>
@@ -128,6 +132,15 @@ const confirmDelete = canDelete && Astro.url.searchParams.get('confirm') === 'de
   )}
 
   <ProductForm raw={raw} errors={errors} ordered={orderedVariantIds} rowNotes={rowNotes} submitLabel="Save" />
+
+  <PhotoManager
+    productId={product.id}
+    productName={product.name}
+    published={product.status === 'published'}
+    photos={photos}
+    mediaBase={mediaBase(env)}
+    confirmId={Astro.url.searchParams.get('confirm-photo')}
+  />
 
   {archived.length > 0 && (
     <section class="pf-archived" id="sizes" aria-labelledby="archived-title">
