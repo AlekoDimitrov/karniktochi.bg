@@ -1,10 +1,12 @@
 // Writes SQL for a LOCAL performance database: the slice 1 mix of 500 published products and 1,000 variants
 // (300 with one variant, 100 with two, 100 with five; 200 of them in 40 series of five), plus 1,000 orders
-// with 1-3 items each. Usage:
+// with 1-3 items each, and photo rows (slice 3): 3 per product, 12 on perf-450..452, none on perf-011 (the
+// product page without photos) and perf-012 (the upload measurement in profile.mjs). The photo keys have no
+// objects behind them: the HTML and CPU are the same either way. Usage:
 //   node scripts/seed-perf.mjs > /tmp/perf.sql
 //   npx wrangler d1 execute karniktochi --local --file /tmp/perf.sql
 // Only ever run it against a throwaway local database (a scratch worktree's .wrangler state): it deletes
-// every product, variant, stock row and order first. Never use --remote.
+// every product, photo row, variant, stock row and order first. Never use --remote.
 
 const categories = ['gotvarski', 'malki', 'kamani', 'poddrazhka'];
 const kinds = ['Гюто', 'Сантоку', 'Петти', 'Накири', 'Бунка', 'Суджихики', 'Камък', 'Дъска'];
@@ -18,7 +20,7 @@ const rows = (table, cols, values) => {
   }
 };
 
-out.push('DELETE FROM order_items;', 'DELETE FROM orders;', 'DELETE FROM stock;', 'DELETE FROM variants;', 'DELETE FROM products;');
+out.push('DELETE FROM order_items;', 'DELETE FROM orders;', 'DELETE FROM product_photos;', 'DELETE FROM stock;', 'DELETE FROM variants;', 'DELETE FROM products;');
 
 const products = [];
 const variants = [];
@@ -45,8 +47,21 @@ for (let i = 0; i < 500; i++) {
   }
 }
 rows('products', 'id, name, brand, category, type, steel, blade_length_mm, handle, weight_g, summary, description, series, status, option_name, option_label, created_at, updated_at', products);
+const photos = [];
+for (let i = 0; i < 500; i++) {
+  const id = `perf-${String(i).padStart(3, '0')}`;
+  const n = i === 11 || i === 12 ? 0 : i >= 450 && i <= 452 ? 12 : 3;
+  for (let k = 0; k < n; k++) {
+    const hash = (i * 100 + k).toString(16).padStart(16, '0');
+    // Mostly 4:5 portraits; every third a 3:2 landscape.
+    const [w, h] = k % 3 === 2 ? [1800, 1200] : [1440, 1800];
+    const alt = k % 2 ? q(`Снимка ${k + 1} на продукт ${i}`) : "''";
+    photos.push(`(${q(`ph_perf${i}_${k}`)}, ${q(id)}, ${k}, ${q(`products/${id}/${hash}`)}, 'webp', '400,900,1800', ${alt}, ${w}, ${h})`);
+  }
+}
 rows('variants', 'id, product_id, position, option_value, option_key, sku, price_cents', variants);
 rows('stock', 'variant_id, quantity', stock);
+rows('product_photos', 'id, product_id, position, key, format, sizes, alt, width, height', photos);
 
 const statuses = ['new', 'confirmed', 'shipped', 'delivered', 'cancelled', 'refused'];
 const orders = [];

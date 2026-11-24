@@ -67,7 +67,9 @@ export async function measure(label, request, { between, after } = {}) {
   // One warm-up request, not counted.
   if (between) await between(-1);
   const [wu, wi] = await request(-1);
-  await (await fetch(wu, { redirect: 'manual', ...wi })).arrayBuffer();
+  const warm = await fetch(wu, { redirect: 'manual', ...wi });
+  await warm.clone().arrayBuffer();
+  if (after) await after(warm);
   for (let i = 0; i < runs; i++) {
     if (between) await between(i);
     const [url, init] = await request(i);
@@ -100,8 +102,9 @@ if (set === 'storefront') {
   await measure('`GET /produkti/`', miss('/produkti/'));
   await measure('`GET /produkti/?page=10`', miss('/produkti/?page=10'));
   await measure('`GET /kategoriya/gotvarski/`', miss('/kategoriya/gotvarski/'));
-  await measure('Product page, 5 sizes (`/produkti/perf-450/`)', miss('/produkti/perf-450/'));
-  await measure('Product page, 1 size, series of 5 (`/produkti/perf-010/`)', miss('/produkti/perf-010/'));
+  await measure('Product page, 5 sizes, 12 photos (`/produkti/perf-450/`)', miss('/produkti/perf-450/'));
+  await measure('Product page, 1 size, series of 5, 3 photos (`/produkti/perf-010/`)', miss('/produkti/perf-010/'));
+  await measure('Product page, 1 size, series of 5, no photo (`/produkti/perf-011/`)', miss('/produkti/perf-011/'));
   await measure('`GET /kolichka/` (cart, never cached)', get('/kolichka/'));
   await measure('`GET /porachka/` (checkout, never cached)', get('/porachka/'));
   await measure('`GET /api/stock` (all 1,000 sizes)', get('/api/stock'));
@@ -128,6 +131,47 @@ await measure('`GET /admin/products/?category=kamani&status=published`', get('/a
 await measure('`GET /admin/products/perf-450/` (edit, 5 sizes)', get('/admin/products/perf-450/'));
 await measure('`GET /admin/products/perf-450/preview/`', get('/admin/products/perf-450/preview/'));
 await measure('`GET /admin/stock/` (redirect)', get('/admin/stock/'));
+
+// Photo upload (slice 3): 3 WebP renditions, about 1 MB in all, to perf-012 (no photos in the seed). Each
+// upload's bytes differ, so the hash differs; the photo is removed again outside the profile, which keeps the
+// product under the 12-photo cap. Only the WebP header is real; the server never decodes the pixels.
+function fakeWebp(width, height, bytes, seed) {
+  const out = new Uint8Array(bytes + (bytes % 2));
+  const view = new DataView(out.buffer);
+  out.set([...'RIFF'].map((c) => c.charCodeAt(0)), 0);
+  view.setUint32(4, out.length - 8, true);
+  out.set([...'WEBPVP8L'].map((c) => c.charCodeAt(0)), 8);
+  view.setUint32(16, out.length - 20, true);
+  out[20] = 0x2f;
+  view.setUint32(21, ((width - 1) | ((height - 1) << 14)) >>> 0, true);
+  for (let i = 25; i < out.length; i++) out[i] = (i * 31 + seed) & 0xff;
+  return out;
+}
+let uploaded = null;
+const removeUploaded = async () => {
+  if (!uploaded) return;
+  const body = new URLSearchParams({ action: 'photo-remove', photo: uploaded });
+  const res = await fetch(`${base}/admin/products/perf-012/`, { method: 'POST', body, headers: origin, redirect: 'manual' });
+  if (res.status !== 303 && res.status !== 302) console.error(`photo-remove: HTTP ${res.status}`);
+  uploaded = null;
+};
+await measure('`POST /admin/products/perf-012/photos/` (upload, 3 WebP renditions, ~1 MB)', (i) => {
+  const form = new FormData();
+  const seed = i + 2;
+  form.append('rendition', new Blob([fakeWebp(400, 500, 60 * 1024, seed)], { type: 'image/webp' }), '400.webp');
+  form.append('rendition', new Blob([fakeWebp(720, 900, 250 * 1024, seed)], { type: 'image/webp' }), '900.webp');
+  form.append('rendition', new Blob([fakeWebp(1440, 1800, 700 * 1024, seed)], { type: 'image/webp' }), '1800.webp');
+  form.set('alt', 'Гюто отблизо');
+  return [`${base}/admin/products/perf-012/photos/`, { method: 'POST', body: form, headers: origin }];
+}, {
+  between: removeUploaded,
+  after: async (res) => {
+    const answer = await res.clone().json();
+    if (!answer.ok) console.error(`upload: ${answer.error}`);
+    uploaded = answer.photo?.id ?? null;
+  },
+});
+await removeUploaded();
 
 // Product save: each save needs the form as it is now (updated_at and stock), read outside the profile.
 let form;
