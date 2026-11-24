@@ -158,7 +158,7 @@ const removeUploaded = async () => {
 await measure('`POST /admin/products/perf-012/photos/` (upload, 3 WebP renditions, ~1 MB)', (i) => {
   const form = new FormData();
   const seed = i + 2;
-  form.append('rendition', new Blob([fakeWebp(400, 500, 60 * 1024, seed)], { type: 'image/webp' }), '400.webp');
+  form.append('rendition', new Blob([fakeWebp(320, 400, 60 * 1024, seed)], { type: 'image/webp' }), '400.webp');
   form.append('rendition', new Blob([fakeWebp(720, 900, 250 * 1024, seed)], { type: 'image/webp' }), '900.webp');
   form.append('rendition', new Blob([fakeWebp(1440, 1800, 700 * 1024, seed)], { type: 'image/webp' }), '1800.webp');
   form.set('alt', 'Гюто отблизо');
