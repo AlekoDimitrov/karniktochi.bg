@@ -121,7 +121,7 @@ describe('cart lines', () => {
     const petty = await addProduct(db, { name: 'Петти' });
     const [p] = await variantIds(db, petty);
 
-    const lines = await cartLines(db, [v210, v240, p, 'nyama'], live);
+    const lines = await cartLines(db, [v210, v240, p, 'nyama'], live, '/m');
     expect(Object.keys(lines).sort()).toEqual([v210, v240, p].sort());
     expect(lines[v240]).toEqual({
       id: v240,
@@ -144,7 +144,7 @@ describe('cart lines', () => {
     ]));
     const [draft] = await variantIds(db, await addProduct(db, { name: 'Чернова', status: 'draft' }));
     await setVariantStatus(db, a, 'archived');
-    const lines = await cartLines(db, [a, b, draft], live);
+    const lines = await cartLines(db, [a, b, draft], live, '/m');
     expect(Object.keys(lines)).toEqual([b]);
     // With one active variant left, the option is no longer a choice.
     expect(lines[b].option).toBe('');

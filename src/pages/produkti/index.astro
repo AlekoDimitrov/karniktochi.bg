@@ -35,7 +35,7 @@ const pageSuffix = page > 1 ? ` — ${bg.shop.pageN.replace('{n}', String(page))
     {
       products.length ? (
         <>
-          <div class="grid">{products.map((p) => <ProductCard product={p} />)}</div>
+          <div class="grid">{products.map((p, i) => <ProductCard product={p} eager={i < 4} />)}</div>
           <Pagination page={page} pages={pages} base="/produkti/" />
         </>
       ) : (

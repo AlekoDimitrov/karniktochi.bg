@@ -9,6 +9,7 @@ import {
   type Category,
   type Visibility,
 } from './catalog';
+import { mediaBase } from './media-base';
 
 export type { Product } from './catalog';
 
@@ -19,4 +20,4 @@ export const visibility: Visibility = { includeDemo: import.meta.env.LAUNCH !== 
 export const getListingPage = (page: number, category?: Category) => listPublicPage(env.DB, visibility, { page, category });
 export const getLatestProducts = (limit: number) => latestPublicProducts(env.DB, visibility, limit);
 export const getProductPageData = (id: string) => getProductPage(env.DB, id, visibility);
-export const getCartLines = (ids: string[]) => cartLines(env.DB, ids, visibility);
+export const getCartLines = (ids: string[]) => cartLines(env.DB, ids, visibility, mediaBase(env));

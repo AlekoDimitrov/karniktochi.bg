@@ -4,6 +4,9 @@ import ProductView from '../../components/ProductView.astro';
 import { bg } from '../../i18n/bg';
 import { cacheTagHeader, tags } from '../../lib/cache-policy';
 import { getProductPageData } from '../../lib/products';
+import { ogImage } from '../../lib/photos';
+import { mediaBase } from '../../lib/media-base';
+import { env } from 'cloudflare:workers';
 
 export const prerender = false;
 
@@ -14,6 +17,6 @@ const { product: d, otherModels, related } = data;
 // Saving any product shown here purges this page (see cache-purge.ts).
 Astro.response.headers.set('Cache-Tag', cacheTagHeader([d, ...otherModels, ...related].map((p) => tags.product(p.id))));
 ---
-<Layout title={`${d.name} — ${bg.siteName}`} description={d.summary} active="shop">
+<Layout title={`${d.name} — ${bg.siteName}`} description={d.summary} active="shop" image={ogImage(mediaBase(env), d.photos[0])}>
   <ProductView data={data} />
 </Layout>

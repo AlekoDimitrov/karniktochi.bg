@@ -3,16 +3,21 @@ import { bg } from '../i18n/bg';
 import { formatPrice } from '../lib/format';
 import { priceRange, totalStock } from '../lib/catalog';
 import type { Product } from '../lib/products';
+import ProductPhoto from './ProductPhoto.astro';
 
-interface Props { product: Product }
-const { product: p } = Astro.props;
+interface Props {
+  product: Product;
+  /** In the first row of a listing: load the photo at once. */
+  eager?: boolean;
+}
+const { product: p, eager = false } = Astro.props;
 const { min, max } = priceRange(p);
 const price = min === max ? formatPrice(min) : bg.product.from.replace('{price}', formatPrice(min));
 ---
 <a class="card" href={`/produkti/${p.id}/`} data-variant-ids={p.variants.map((v) => v.id).join(' ')}>
   <div class="card__photo">
     {p.isDemo && <span class="ribbon">{bg.product.demo}</span>}
-    <span>{bg.product.photo}, 4:5</span>
+    <ProductPhoto product={p} photo={p.photos[0]} maxSide={900} eager={eager} sizes="(max-width: 640px) calc(100vw - 40px), (max-width: 1100px) 45vw, 290px" />
   </div>
   <div class="card__meta">
     <span class="card__brand">{p.brand.toUpperCase()}</span>

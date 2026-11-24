@@ -10,6 +10,7 @@ import {
   listPhotos,
   movePhoto,
   objectKeysOf,
+  ogImage,
   photoSide,
   photoSrcset,
   photoUrl,
@@ -233,6 +234,17 @@ describe('URLs and srcset', () => {
   it('builds URLs from the base, with or without a trailing slash, and the format’s extension', () => {
     expect(photoUrl('https://media.karniktochi.com/', photo([400], 400, 200), 400)).toBe('https://media.karniktochi.com/products/guto/abc-400.webp');
     expect(photoUrl('/dev-media', photo([400], 400, 200, 'jpeg'), 400)).toBe('/dev-media/products/guto/abc-400.jpg');
+  });
+
+  it('gives og:image the largest rendition, only with an absolute base URL', () => {
+    expect(ogImage('https://media.karniktochi.com', photo([400, 900, 1800], 1800, 900))).toEqual({
+      url: 'https://media.karniktochi.com/products/guto/abc-1800.webp',
+      width: 1800,
+      height: 900,
+    });
+    expect(ogImage('https://m.example', photo([400, 600], 480, 600, 'jpeg'))).toEqual({ url: 'https://m.example/products/guto/abc-600.jpg', width: 480, height: 600 });
+    expect(ogImage('/dev-media', photo([400], 400, 300))).toBeUndefined();
+    expect(ogImage('https://m.example', undefined)).toBeUndefined();
   });
 
   it('lists only the renditions that exist, each with its real width', () => {

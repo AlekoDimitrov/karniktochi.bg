@@ -89,6 +89,16 @@ export function photoSide(photo: Photo, maxSide: number): number {
 /** Width and height of one rendition. */
 export const renditionSize = (photo: Photo, side: number) => scaledSize(photo.width, photo.height, side);
 
+/**
+ * og:image for a product page: its largest rendition (at most 1800), or undefined without a photo or when
+ * `base` isn't an absolute http(s) URL (local dev's /dev-media), since social sites need a full address.
+ */
+export function ogImage(base: string, photo: Photo | undefined): { url: string; width: number; height: number } | undefined {
+  if (!photo || !/^https?:\/\//.test(base)) return undefined;
+  const side = photoSide(photo, 1800);
+  return { url: photoUrl(base, photo, side), ...renditionSize(photo, side) };
+}
+
 // ---- Reading ------------------------------------------------------------------------------------
 
 /** A product's photos in position order. */

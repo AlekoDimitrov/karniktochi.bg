@@ -1,0 +1,51 @@
+---
+// One product photo inside a 4:5 frame (the frame is the parent's .card__photo or .photo): an <img> with every
+// stored rendition up to `maxSide` in srcset, shown whole (object-fit: contain) on the frame's light
+// background, or, without a photo, a placeholder with the product's type. width/height come from D1, so
+// nothing shifts while it loads. URLs start at MEDIA_BASE_URL (/dev-media in astro dev).
+import { env } from 'cloudflare:workers';
+import { bg } from '../i18n/bg';
+import { mediaBase } from '../lib/media-base';
+import { photoSide, photoSrcset, photoUrl, renditionSize, type Photo } from '../lib/photos';
+import type { Product } from '../lib/catalog';
+
+interface Props {
+  product: Pick<Product, 'name' | 'type' | 'category'>;
+  photo?: Photo;
+  /** Position among the product's photos, for the alt fallback ("…, снимка 2"). */
+  index?: number;
+  /** The `sizes` attribute: how wide the frame is drawn. */
+  sizes: string;
+  /** Largest rendition to offer. */
+  maxSide?: number;
+  /** Above the fold: load at once, with high priority for the first one. */
+  eager?: boolean;
+  priority?: boolean;
+  /** Extra attributes for the gallery script. */
+  id?: string;
+}
+
+const { product, photo, index = 0, sizes, maxSide = Infinity, eager = false, priority = false, id } = Astro.props;
+const base = mediaBase(env);
+const alt = photo?.alt || (index > 0 ? `${product.name}, ${bg.product.photoN.replace('{n}', String(index + 1))}` : product.name);
+const side = photo ? photoSide(photo, maxSide) : 0;
+const size = photo ? renditionSize(photo, side) : null;
+---
+{
+  photo && size ? (
+    <img
+      id={id}
+      src={photoUrl(base, photo, side)}
+      srcset={photoSrcset(base, photo, maxSide)}
+      sizes={sizes}
+      width={size.width}
+      height={size.height}
+      alt={alt}
+      loading={eager ? 'eager' : 'lazy'}
+      fetchpriority={priority ? 'high' : undefined}
+      decoding="async"
+    />
+  ) : (
+    <span class="photo-placeholder">{product.type || bg.categoriesShort[product.category]}</span>
+  )
+}

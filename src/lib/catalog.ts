@@ -4,6 +4,8 @@
 // only while `includeDemo` is on (it is off when the site is built with LAUNCH=1). Drafts, archived
 // products and archived variants are never shown and can't be ordered.
 
+import { PHOTO_COLUMNS, photoSide, photoUrl, photosByProduct, toPhoto, type Photo, type PhotoRow } from './photos';
+
 export const CATEGORIES = ['gotvarski', 'malki', 'kamani', 'poddrazhka'] as const;
 export type Category = (typeof CATEGORIES)[number];
 export const PRODUCT_STATUSES = ['draft', 'published', 'archived'] as const;
@@ -47,6 +49,11 @@ export type Product = {
   updatedAt: string;
   /** Ordered by position. Public reads include active variants only. */
   variants: Variant[];
+  /**
+   * Ordered by position; the first is the main photo. Listings and cards load only the main photo, the
+   * product page all of them; reads that don't load photos leave it empty.
+   */
+  photos: Photo[];
 };
 
 export type Visibility = { includeDemo: boolean };
@@ -140,7 +147,7 @@ const toVariant = (r: VariantRow): Variant => ({
   stock: r.stock,
 });
 
-const toProduct = (r: ProductRow, variants: Variant[]): Product => ({
+const toProduct = (r: ProductRow, variants: Variant[], photos: Photo[] = []): Product => ({
   id: r.id,
   name: r.name,
   brand: r.brand,
@@ -163,6 +170,7 @@ const toProduct = (r: ProductRow, variants: Variant[]): Product => ({
   createdAt: r.created_at,
   updatedAt: r.updated_at,
   variants,
+  photos,
 });
 
 // Stock is the stock row's count; a variant without one has none.
@@ -211,14 +219,21 @@ export const RELATED_LIMIT = 4;
 export const OTHER_MODELS_LIMIT = 24;
 
 // Statements for the products whose ids `ids` selects (a subquery using ?1 and its own parameters), with their
-// active variants. Both are bound to `args`, so they can go in one batch with other statements.
-function productsAndVariants(db: D1Database, ids: string, args: unknown[]) {
+// active variants and photos: only the main one (position 0) for cards, or all of them. All three are bound to
+// `args`, so they can go in one batch with other statements.
+function productsAndVariants(db: D1Database, ids: string, args: unknown[], photos: 'main' | 'all' = 'main') {
   return [
     db.prepare(`SELECT p.* FROM products p WHERE p.id IN (${ids}) ${NEWEST}`).bind(...args),
     db
       .prepare(
         `SELECT ${VARIANT_COLUMNS} FROM variants v LEFT JOIN stock s ON s.variant_id = v.id
          WHERE v.status = 'active' AND v.product_id IN (${ids}) ORDER BY v.position, v.id`,
+      )
+      .bind(...args),
+    db
+      .prepare(
+        `SELECT ${PHOTO_COLUMNS} FROM product_photos ph WHERE ph.product_id IN (${ids})
+         ${photos === 'main' ? 'AND ph.position = 0' : ''} ORDER BY ph.position, ph.id`,
       )
       .bind(...args),
   ];
@@ -235,13 +250,13 @@ export async function listPublicPage(
   const where = `${LISTED} AND (?2 IS NULL OR p.category = ?2)`;
   const ids = `SELECT p.id FROM products p WHERE ${where} ${NEWEST} LIMIT ?3 OFFSET ?4`;
   const args = [vis.includeDemo ? 1 : 0, category ?? null, perPage, (page - 1) * perPage];
-  const [count, products, variants] = await db.batch([
+  const [count, products, variants, photos] = await db.batch([
     db.prepare(`SELECT COUNT(*) AS n FROM products p WHERE ${where}`).bind(args[0], args[1]),
     ...productsAndVariants(db, ids, args),
   ]);
   const total = (count.results[0] as { n: number }).n;
   return {
-    products: assemble(products.results as ProductRow[], variants.results as VariantRow[]),
+    products: assemble(products.results as ProductRow[], variants.results as VariantRow[], photos.results as PhotoRow[]),
     total,
     page,
     pages: Math.max(1, Math.ceil(total / perPage)),
@@ -251,8 +266,8 @@ export async function listPublicPage(
 /** The newest `limit` listed products (the home page). */
 export async function latestPublicProducts(db: D1Database, vis: Visibility, limit: number): Promise<Product[]> {
   const ids = `SELECT p.id FROM products p WHERE ${LISTED} ${NEWEST} LIMIT ?2`;
-  const [products, variants] = await db.batch(productsAndVariants(db, ids, [vis.includeDemo ? 1 : 0, limit]));
-  return assemble(products.results as ProductRow[], variants.results as VariantRow[]);
+  const [products, variants, photos] = await db.batch(productsAndVariants(db, ids, [vis.includeDemo ? 1 : 0, limit]));
+  return assemble(products.results as ProductRow[], variants.results as VariantRow[], photos.results as PhotoRow[]);
 }
 
 export type ProductPageData = { product: Product; otherModels: Product[]; related: Product[] };
@@ -276,17 +291,18 @@ export async function getProductPage(
   const related = `SELECT p.id FROM products p WHERE ${LISTED} AND p.id <> ?2 AND p.category = ${category}
     AND (p.series = '' OR p.series <> ${series}) ${NEWEST} LIMIT ${RELATED_LIMIT}`;
   const args = [vis.includeDemo ? 1 : 0, id];
-  const [self, selfVariants, otherRows, otherVariants, relatedRows, relatedVariants] = await db.batch([
-    ...productsAndVariants(db, `SELECT p.id FROM products p WHERE p.id = ?2${anyStatus ? '' : ` AND ${LISTED}`}`, args),
-    ...productsAndVariants(db, others, args),
-    ...productsAndVariants(db, related, args),
-  ]);
-  const [product] = assemble(self.results as ProductRow[], selfVariants.results as VariantRow[]);
+  const [self, selfVariants, selfPhotos, otherRows, otherVariants, otherPhotos, relatedRows, relatedVariants, relatedPhotos] =
+    await db.batch([
+      ...productsAndVariants(db, `SELECT p.id FROM products p WHERE p.id = ?2${anyStatus ? '' : ` AND ${LISTED}`}`, args, 'all'),
+      ...productsAndVariants(db, others, args),
+      ...productsAndVariants(db, related, args),
+    ]);
+  const [product] = assemble(self.results as ProductRow[], selfVariants.results as VariantRow[], selfPhotos.results as PhotoRow[]);
   if (!product) return null;
   return {
     product,
-    otherModels: assemble(otherRows.results as ProductRow[], otherVariants.results as VariantRow[]),
-    related: assemble(relatedRows.results as ProductRow[], relatedVariants.results as VariantRow[]),
+    otherModels: assemble(otherRows.results as ProductRow[], otherVariants.results as VariantRow[], otherPhotos.results as PhotoRow[]),
+    related: assemble(relatedRows.results as ProductRow[], relatedVariants.results as VariantRow[], relatedPhotos.results as PhotoRow[]),
   };
 }
 
@@ -307,7 +323,7 @@ export type CartLineInfo = {
   url: string;
   priceCents: number;
   stock: number;
-  /** No product photos yet. */
+  /** URL of the main photo's smallest rendition (at most 400 px), or null without photos. */
   photo: string | null;
 };
 
@@ -322,21 +338,29 @@ export function parseCartIds(value: string | null): string[] | null {
   return ids;
 }
 
-/** Cart line details for the public, active variants among `ids` (others are left out). */
-export async function cartLines(db: D1Database, ids: string[], vis: Visibility): Promise<Record<string, CartLineInfo>> {
+/**
+ * Cart line details for the public, active variants among `ids` (others are left out). Photo URLs start with
+ * `mediaBase` (src/lib/media-base.ts).
+ */
+export async function cartLines(db: D1Database, ids: string[], vis: Visibility, mediaBase: string): Promise<Record<string, CartLineInfo>> {
   if (!ids.length) return {};
   const rows = await db
     .prepare(
       `SELECT v.id, v.product_id, v.option_value, v.option_key, v.price_cents, COALESCE(s.quantity, 0) AS stock,
          p.name, p.brand, p.option_label,
-         (SELECT COUNT(*) FROM variants x WHERE x.product_id = p.id AND x.status = 'active') AS choices
+         (SELECT COUNT(*) FROM variants x WHERE x.product_id = p.id AND x.status = 'active') AS choices,
+         ph.key AS photo_key, ph.format AS photo_format, ph.sizes AS photo_sizes, ph.width AS photo_width,
+         ph.height AS photo_height
        FROM variants v JOIN products p ON p.id = v.product_id LEFT JOIN stock s ON s.variant_id = v.id
+       LEFT JOIN product_photos ph ON ph.id = (SELECT id FROM product_photos WHERE product_id = p.id ORDER BY position, id LIMIT 1)
        WHERE v.id IN (${ids.map((_, i) => `?${i + 2}`).join(',')}) AND v.status = 'active' AND ${PUBLIC_PRODUCT}`,
     )
     .bind(vis.includeDemo ? 1 : 0, ...ids)
     .all<{
       id: string; product_id: string; option_value: string; option_key: string; price_cents: number; stock: number;
       name: string; brand: string; option_label: string; choices: number;
+      // The main photo; all null without photos.
+      photo_key: string | null; photo_format: Photo['format']; photo_sizes: string; photo_width: number; photo_height: number;
     }>();
   return Object.fromEntries(
     rows.results.map((r) => [
@@ -350,10 +374,16 @@ export async function cartLines(db: D1Database, ids: string[], vis: Visibility):
         url: `/produkti/${r.product_id}/${r.choices > 1 ? `?v=${encodeURIComponent(r.option_key)}` : ''}`,
         priceCents: r.price_cents,
         stock: r.stock,
-        photo: null,
+        photo: r.photo_key ? mainPhotoUrl(mediaBase, r.photo_key, r.photo_format, r.photo_sizes, r.photo_width, r.photo_height) : null,
       },
     ]),
   );
+}
+
+// The URL of a main photo's rendition of at most 400 px, from its columns.
+function mainPhotoUrl(base: string, key: string, format: Photo['format'], sizes: string, width: number, height: number) {
+  const photo = toPhoto({ id: '', product_id: '', position: 0, key, format, sizes, alt: '', width, height });
+  return photoUrl(base, photo, photoSide(photo, 400));
 }
 
 /** Every product in any status with all its variants, for the admin. Newest first. */
@@ -365,14 +395,15 @@ export async function listAllProducts(db: D1Database): Promise<Product[]> {
   return assemble(products.results as ProductRow[], variants.results as VariantRow[]);
 }
 
-export function assemble(products: ProductRow[], variants: VariantRow[]): Product[] {
+export function assemble(products: ProductRow[], variants: VariantRow[], photos: PhotoRow[] = []): Product[] {
   const byProduct = new Map<string, Variant[]>();
   for (const v of variants) {
     const list = byProduct.get(v.product_id) ?? [];
     list.push(toVariant(v));
     byProduct.set(v.product_id, list);
   }
-  return products.map((p) => toProduct(p, byProduct.get(p.id) ?? []));
+  const photosOf = photosByProduct(photos);
+  return products.map((p) => toProduct(p, byProduct.get(p.id) ?? [], photosOf.get(p.id) ?? []));
 }
 
 /** Live stock for every public variant, as { [variantId]: count }. */
