@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-25, staging step A done (staging database migrated).
-Next: you set the Resend key (step C) and say "key set"; then I deploy (D).
+Rewritten at the end of every task. Last updated: 2026-11-25, staging deployed (steps A–D done) at https://staging.karniktochi.com.
+Next: the staging checklist (E), you and me. Open finding: X-Robots-Tag on Worker pages (checklist item 3).
 
 ## Branches
 
@@ -73,7 +73,7 @@ A. **Done 2026-11-25** (0001–0003 applied; tables orders, order_items, product
 B. **Seeding: none.** The 6 demo products are enough to test; you add real ones in the admin, and "Archive
    all demo products" is on the checklist. `seed-dev.sql` is written for the local database (it deletes all
    products) and isn't used on staging unless you ask.
-C. **You, Resend key, then your own terminal** (not the `!` prefix, so nothing of it reaches the chat):
+C. **Done 2026-11-25** (you set the key; `secret list` shows `RESEND_API_KEY`). **You, Resend key, then your own terminal** (not the `!` prefix, so nothing of it reaches the chat):
    1. resend.com → API Keys → Create API Key. Name `karniktochi-staging`, Permission **Sending access**,
       Domain **karniktochi.com**. Copy the key (`re_…`; shown once).
    2. In a terminal in the project folder: `npx wrangler secret put RESEND_API_KEY --name karniktochi-staging`.
@@ -81,7 +81,16 @@ C. **You, Resend key, then your own terminal** (not the `!` prefix, so nothing o
       Worker; no route, no bindings). Paste the key at the hidden prompt.
    3. Tell me "key set". I check with `npx wrangler secret list --name karniktochi-staging` (names only).
    Emails fail until Resend shows the domain as Verified; the rest of staging works without it.
-D. **Me, staging deploy:** `CLOUDFLARE_ENV=staging npm run build && npx wrangler deploy`. This uploads the
+D. **Done 2026-11-25**, version `79b3fb7c-6ff2-4c1c-be5b-63c66b7d1bb6` from `1bc5e77`. Bindings: D1
+   `karniktochi-staging`, R2 `karniktochi-media-staging`, sender orders@, Access values. First look: home 200
+   with the 4 published-card demo products, `/admin/` → 302 to the Access login on
+   karniktochi.cloudflareaccess.com, karniktochi-staging.kalekcho.workers.dev → 404, production
+   karniktochi.kalekcho.workers.dev still 200 (untouched). `dist/` rebuilt as production afterwards.
+   **Finding:** Worker-rendered pages have no `X-Robots-Tag` header: `public/_headers` only applies to static
+   assets (favicon has it; production's `/` has it because main's home is static). Pages are still hidden by
+   `<meta name="robots" content="noindex, nofollow">` (Layout.astro, until `LAUNCH=1`), so not indexable.
+   Open: add the header in middleware for Worker responses while hidden (needs a redeploy), and the launch
+   checklist must also cover `LAUNCH=1`, not only deleting `_headers`. Original step: **Me, staging deploy:** `CLOUDFLARE_ENV=staging npm run build && npx wrangler deploy`. This uploads the
    site to `karniktochi-staging`, attaches staging.karniktochi.com (Cloudflare creates the DNS record; the
    deploy fails if a DNS record for that name already exists) and keeps workers.dev off. Then
    `npm run build` again, so `dist/` is the production build. Then a first look: home over HTTPS,
@@ -252,7 +261,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Staging: A done; waiting for "key set" (C), then D.
+- Staging: deployed; staging checklist next.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
