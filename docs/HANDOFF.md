@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-25, staging checklist run (you logged in, me from Workers logs).
-Next: the small staging follow-ups, then "Open before launch" (both below).
+Rewritten at the end of every task. Last updated: 2026-11-25, staging checklist done; favicon.ico and our own robots.txt on staging.
+Next: "Open before launch" (below), the production items.
 
 ## Branches
 
@@ -327,7 +327,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Staging checklist: run; follow-ups in "Open before launch".
+- Nothing. Staging checklist done; next is "Open before launch" (production).
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -430,17 +430,28 @@ orders (docs/slice-2-report.md):
 
 ## Open before launch (2026-11-25)
 
-Staging follow-ups (small):
-1. **Plain HTTP is served, not redirected:** `http://staging.karniktochi.com/` answers 200 (seen in the logs
-   from your phone or browser, and with curl). You, dashboard: karniktochi.com → SSL/TLS → Edge
-   Certificates → **Always Use HTTPS** on (covers production too). HSTS: decide at launch.
-2. Confirm in R2 that the removed photo's files are gone (see item 9 above).
-3. Confirm the 3 emails arrived (customer, team@, reply via orders@).
-4. `/favicon.ico` is a 404 rendered by the Worker (8–10 ms CPU each time a browser asks). Add a static
-   `public/favicon.ico`.
-5. `/robots.txt`: a curl got a 200 with 1,248 bytes (probably Cloudflare's managed robots.txt), but a
-   request at 13:39 reached the Worker and got a 404. Decide what robots.txt the launched site serves.
-6. The 2 staging test orders are `new`; cancel them in the admin if you want staging clean.
+Staging follow-ups: **all done (2026-11-25).**
+1. Plain HTTP: you turned on **Always Use HTTPS** for karniktochi.com (and minimum TLS 1.2). HSTS: decide at
+   launch.
+2. Photo removal: you checked R2: `products/demo-1/` holds exactly 3 objects, all `9e31149e91ecaaae-*`, so
+   removing a photo deletes its files.
+3. Email: you confirmed (staging checklist done). Both test orders cancelled by you; no email arrived after
+   cancelling: **status changes don't email the customer** (as built; only the new-order emails exist).
+4. Phone check: ok (you).
+5. `/favicon.ico`: static file (`6fa2416`; 48/32/16 px from favicon-192.png). Served from assets
+   (`image/vnd.microsoft.icon`, 15,086 bytes, same bytes as `public/favicon.ico`); `wrangler tail` showed no
+   Worker invocation for it.
+6. `/robots.txt`: our own, prerendered static file (`src/pages/robots.txt.ts`, text from `robotsTxt()` in
+   `src/lib/robots.ts`). Without LAUNCH=1: `User-agent: *` / `Disallow: /`. With LAUNCH=1: everything
+   allowed except `/admin/`, `/kolichka/`, `/porachka/`, `/api/`; a `Sitemap:` line only when a sitemap URL
+   is passed (none exists yet). Unit tests for both; `npm run build` (check-hidden.mjs) also fails if the
+   built file doesn't match the build's LAUNCH (checked both ways). On staging: 200, 26 bytes, exactly
+   ours, no Worker invocation.
+   **Cloudflare's managed robots.txt (AI Crawl Control) must not override ours.** Before our file existed,
+   staging served Cloudflare's 1,248-byte content-signals preamble (comments only, no rules), so the zone
+   setting is on. Now that we serve a robots.txt, Cloudflare doesn't add anything (checked on staging
+   2026-11-25). Recheck `curl https://karniktochi.com/robots.txt` after launch and after any change to AI
+   Crawl Control; if the preamble or AI-bot rules appear, turn off the managed robots.txt there.
 
 Launch (production):
 7. Production bucket `karniktochi-media` with custom domain media.karniktochi.com (no production deploy
