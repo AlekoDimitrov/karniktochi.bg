@@ -1,21 +1,22 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-24, slice 3 final stop (all 6 plan steps done).
-Next: you turn on Workers Paid and set up staging ("Staging setup" below), then the staging checklist.
+Rewritten at the end of every task. Last updated: 2026-11-25, staging values filled in (nothing remote done).
+Next: your "go" for "Staging setup" steps A–D below, then the staging checklist.
 
 ## Branches
 
 - `main`: `b98643f`, same as `origin/main`. Not deployed: the live site still runs `fa78e84`.
 - `products-in-d1`: pushed to origin at this stop. **Not deployable to production:** `wrangler.jsonc` names
   the R2 bucket `karniktochi-media`, which doesn't exist on Cloudflare, and no production deploy happens
-  before `media.karniktochi.com` exists (DECISIONS, 2026-10-30, recorded 2026-11-24). Staging is configured
-  (`env.staging`) but its database id and bucket URL are placeholders until you create them.
+  before `media.karniktochi.com` exists (DECISIONS, 2026-10-30, recorded 2026-11-24). Staging (`env.staging`)
+  is fully configured: staging.karniktochi.com, media-staging.karniktochi.com, its database id and Access.
 - Temporary worktrees: none. The `--host` dev server is stopped (you no longer need it).
-- **Workers Paid is turned on right before staging, after slice 3 is built** (user, 2026-11-24). Slice 3 is
-  now built.
+- **Workers Paid is on** (user, 2026-11-25), with a $2 budget alert and a $10 spending limit.
 
 Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds nothing (DECISIONS,
-2026-10-30). The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev.
+2026-10-30). The live site is the Worker `karniktochi` at karniktochi.kalekcho.workers.dev. karniktochi.com
+is active on Cloudflare (nameservers moved from Namecheap, 2026-11-25); production will later be
+karniktochi.com and media.karniktochi.com.
 
 ## Slice 3 status: built, all 6 steps done
 
@@ -33,35 +34,55 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
   **Upload: 18–22 ms** (admin; under the Workers Paid decision). The ~200 test uploads were removed again
   (0 rows, 0 objects left in the throwaway bucket).
 - **Step 6, docs and staging config:** `env.staging` in `wrangler.jsonc` (Worker `karniktochi-staging`,
-  database `karniktochi-staging`, bucket `karniktochi-media-staging`, r2.dev `MEDIA_BASE_URL`); checked
+  database `karniktochi-staging`, bucket `karniktochi-media-staging`, r2.dev `MEDIA_BASE_URL`, replaced on 2026-11-25); checked
   that `CLOUDFLARE_ENV=staging` builds a config with those bindings, and that the normal build is unchanged
   (`karniktochi`, production bindings). Nothing created on Cloudflare. CLAUDE.md (photos, staging, perf
   scripts), plan status, this file.
 
-## Staging setup, in order (nothing done yet)
+## Staging setup
 
-Values marked **→ me** are not secrets; paste them in chat. I touch nothing remote until you say so for that
-step (your rule: never deploy, never touch a remote database or bucket).
+### Done by you (2026-11-25)
 
-1. **You, dashboard:** turn on **Workers Paid** (Workers & Pages → Plans). Required before the admin runs on
-   Cloudflare (DECISIONS 2026-10-30).
-2. **You, dashboard:** Storage & Databases → D1 → **Create** `karniktochi-staging`. **→ me:** its Database ID.
-3. **You, dashboard:** R2 → **Create bucket** `karniktochi-media-staging`; its Settings → Public
-   Development URL (r2.dev) → **Enable**. **→ me:** the `https://pub-….r2.dev` URL.
-4. **You, dashboard:** Zero Trust → Access → Applications → **Add a self-hosted application** for
-   `karniktochi-staging.kalekcho.workers.dev`, path `admin` (covers `/admin/…`), policy: allow your email.
-   **→ me:** the team domain (`….cloudflareaccess.com`) and the application's AUD tag. Until these are set,
-   the staging admin answers 403 to everyone (safe default in `src/lib/access.ts`).
-5. **Me:** put the four values into `env.staging` in `wrangler.jsonc`, build, test, commit, push.
-6. **Me, after your go (remote database):** `npx wrangler d1 migrations apply karniktochi-staging --env
-   staging --remote` (0001–0003), then list its tables. Never the production database `karniktochi`.
-7. **You, terminal:** `! npx wrangler secret put RESEND_API_KEY --env staging` (you type the key; I never
-   handle it). If wrangler says the Worker doesn't exist yet, let it create it, or do this right after
-   step 8.
-8. **Me, after your go (deploy):** `CLOUDFLARE_ENV=staging npm run build && npx wrangler deploy`. This creates
-   the separate Worker `karniktochi-staging`; the live `karniktochi` Worker is untouched.
-9. **Staging checklist** below, you and me. Staging starts with an empty catalog: add products in the
-   admin (or ask me to load `seed-dev.sql` into the staging database).
+- Workers Paid on ($2 budget alert, $10 spending limit).
+- D1 database `karniktochi-staging` (id `64a85747-ebc3-4524-bb6c-6189bdc7ad98`), still empty.
+- Bucket `karniktochi-media-staging` with custom domain media-staging.karniktochi.com; r2.dev off.
+- Access application "Karnik Tochi staging admin" on staging.karniktochi.com/admin (team domain
+  karniktochi.cloudflareaccess.com).
+- Resend: domain karniktochi.com added in the EU region; DNS verification in progress. No API key yet.
+
+### Done by me (2026-11-25), nothing remote touched
+
+- `env.staging` in `wrangler.jsonc`: database id, bucket, `MEDIA_BASE_URL` https://media-staging.karniktochi.com,
+  `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, sender `porachki@karniktochi.com` (unchanged), a custom-domain route
+  for staging.karniktochi.com, and `workers_dev: false` (Access covers only the custom domain).
+- Checked: `CLOUDFLARE_ENV=staging npm run build` writes `karniktochi-staging` with those bindings and the
+  route; `npx wrangler deploy --dry-run` lists them (uploads nothing). The normal build is unchanged
+  (`karniktochi`, production database, media.karniktochi.com, Access empty).
+- Read-only: the Worker `karniktochi-staging` doesn't exist yet. Wrangler refuses a Worker's first deploy
+  while a required secret (`RESEND_API_KEY`) is unset, so the key goes in before the deploy (step C).
+
+### After your "go", in this order (production Worker `karniktochi` and its database never touched)
+
+A. **Me, staging database:** `npx wrangler d1 migrations apply karniktochi-staging --env staging --remote`
+   (0001–0003), then list its tables and count products. 0002 inserts the 6 demo products (demo-1…6), so
+   staging starts with those.
+B. **Seeding: none.** The 6 demo products are enough to test; you add real ones in the admin, and "Archive
+   all demo products" is on the checklist. `seed-dev.sql` is written for the local database (it deletes all
+   products) and isn't used on staging unless you ask.
+C. **You, Resend key, then your own terminal** (not the `!` prefix, so nothing of it reaches the chat):
+   1. resend.com → API Keys → Create API Key. Name `karniktochi-staging`, Permission **Sending access**,
+      Domain **karniktochi.com**. Copy the key (`re_…`; shown once).
+   2. In a terminal in the project folder: `npx wrangler secret put RESEND_API_KEY --name karniktochi-staging`.
+      Wrangler says the Worker doesn't exist and asks to create it: answer yes (an empty placeholder
+      Worker; no route, no bindings). Paste the key at the hidden prompt.
+   3. Tell me "key set". I check with `npx wrangler secret list --name karniktochi-staging` (names only).
+   Emails fail until Resend shows the domain as Verified; the rest of staging works without it.
+D. **Me, staging deploy:** `CLOUDFLARE_ENV=staging npm run build && npx wrangler deploy`. This uploads the
+   site to `karniktochi-staging`, attaches staging.karniktochi.com (Cloudflare creates the DNS record; the
+   deploy fails if a DNS record for that name already exists) and keeps workers.dev off. Then
+   `npm run build` again, so `dist/` is the production build. Then a first look: home over HTTPS,
+   `X-Robots-Tag` present, /admin/ gives the Access login.
+E. **Staging checklist** below, you and me.
 
 ### Steps 1–3 (stop 1)
 
@@ -227,7 +248,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Nothing. Slice 3 is built; staging setup is waiting for you (above).
+- Staging: config done; waiting for your "go" ("Staging setup", A–D).
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -321,16 +342,16 @@ orders (docs/slice-2-report.md):
 - Real phones (only the 390 px iframe).
 - The `/api/cart-lines` failure on first page load. Only a failure after the page had loaded was tested.
 
-## Test and build results (2026-11-24, products-in-d1 at the final stop)
+## Test and build results (2026-11-25, products-in-d1, after the staging values)
 
 - `npx astro check`: 0 errors, 0 warnings, 1 hint (unused variable in scripts/profile.mjs, old);
 - `npm test`: 26 files, 314 tests, all passing;
-- `npm run build`: completes, check-hidden passes.
+- `npm run build`: completes, check-hidden passes; `CLOUDFLARE_ENV=staging npm run build` and `wrangler deploy --dry-run` show the staging bindings and route.
 - `check:admin-paths`: all 14 spellings 403 (private, no-store) or 404, including the photo endpoint.
 
 ## Open decisions for you
 
-1. **Staging:** Workers Paid, then "Staging setup" above.
+1. **Staging:** your "go" for "Staging setup" A–D above.
 2. **Remote database reset:** when to reset it relative to the first deploy of products-in-d1
    (DECISIONS, 2026-10-29).
 3. The reasons marked "not recorded" in docs/DECISIONS.md.
@@ -344,11 +365,10 @@ orders (docs/slice-2-report.md):
 ## Open questions
 
 - **Open before staging:**
-  1. **Staging database and bucket: decided, configured, not created.** `env.staging` in `wrangler.jsonc`
-     binds `karniktochi-staging` and `karniktochi-media-staging`; the database id and r2.dev URL are
-     placeholders ("Staging setup", steps 2–5). The production database `karniktochi` is not reset for
-     staging, because the live Worker still runs main, which expects the old schema.
-  2. **Workers Paid** must be active before any staging deploy (DECISIONS, 2026-10-30).
+  1. **Staging database and bucket: created by you, configured; migrations not applied** ("Staging setup",
+     A). The production database `karniktochi` is not reset for staging, because the live Worker still
+     runs main, which expects the old schema.
+  2. **Workers Paid:** on (2026-11-25).
   3. **Production photos:** no production deploy before `media.karniktochi.com` exists (bucket
      `karniktochi-media` with that custom domain).
   4. **Checkout CPU:** why the first local measurement was ~15 ms and the rerun ~10 ms is not proven.
@@ -364,9 +384,8 @@ orders (docs/slice-2-report.md):
 - **Staging checklist** (things only Cloudflare can show), in order:
   1. Workers Paid must be active before the admin runs on Cloudflare, including staging (DECISIONS,
      2026-10-30).
-  2. Create the D1 database `karniktochi-staging` and the bucket `karniktochi-media-staging` (switch on its
-     r2.dev URL), fill in `env.staging`, and apply migrations 0001–0003 to the staging database ("Staging
-     setup" above). Never apply them to `karniktochi`, the production database. Then deploy products-in-d1
+  2. Apply migrations 0001–0003 to the staging database ("Staging setup" above; database, bucket and
+     `env.staging` are done). Never apply them to `karniktochi`, the production database. Then deploy products-in-d1
      by hand with wrangler to that environment, never from main.
   3. `X-Robots-Tag: noindex, nofollow` present on the staging address.
   4. Cloudflare Access on /admin: without a login you get the Access page; with one, the middleware
@@ -379,7 +398,7 @@ orders (docs/slice-2-report.md):
      save, from Workers Logs or the dashboard, and compare with docs/slice-2-report.md.
   8. A real phone: product page, cart, checkout and the admin products list.
   9. Photos: upload a photo in the staging admin; it appears in the admin and on the shop page from the
-     r2.dev address; removing it deletes its three files from the bucket.
+     media-staging.karniktochi.com; removing it deletes its three files from the bucket.
   10. Upload a photo taken on an iPhone from Safari in the admin; confirm it shows "· JPEG" (or WebP if Safari
       can encode it), that EXIF/GPS is stripped, and that it appears on the shop page. Check the shop pages
       on a real phone. (User, 2026-11-24.)

@@ -55,21 +55,23 @@
 		// `astro dev` uses /dev-media instead, served from the local bucket (src/lib/media-base.ts).
 		"MEDIA_BASE_URL": "https://media.karniktochi.com"
 	},
-	// Staging: a separate Worker (karniktochi-staging, on workers.dev) with its own database and bucket, so it
-	// never touches production data (DECISIONS 2026-10-30). Written, NOT created on Cloudflare yet: the two
-	// REPLACE values come from the dashboard (docs/HANDOFF.md, "Staging setup"). Build and deploy with
+	// Staging: a separate Worker (karniktochi-staging) at https://staging.karniktochi.com, with its own database
+	// and bucket, so it never touches production data (DECISIONS 2026-10-30, 2026-11-25). Build and deploy with
 	//   CLOUDFLARE_ENV=staging npm run build && npx wrangler deploy
 	// (the build picks the environment; wrangler deploy then uses the config the build wrote).
 	// Wrangler doesn't copy vars, secrets, d1_databases or r2_buckets into an environment, so they are
 	// repeated here in full; assets, observability and cache are inherited.
 	"env": {
 		"staging": {
+			// The deploy attaches this custom domain (and creates its DNS record). No workers.dev address:
+			// Cloudflare Access protects /admin only on staging.karniktochi.com.
+			"routes": [{ "pattern": "staging.karniktochi.com", "custom_domain": true }],
+			"workers_dev": false,
 			"d1_databases": [
 				{
 					"binding": "DB",
 					"database_name": "karniktochi-staging",
-					// The id printed by `npx wrangler d1 create karniktochi-staging`.
-					"database_id": "REPLACE-with-karniktochi-staging-database-id",
+					"database_id": "64a85747-ebc3-4524-bb6c-6189bdc7ad98",
 					"migrations_dir": "migrations"
 				}
 			],
@@ -89,11 +91,11 @@
 				"BANK_HOLDER": "",
 				"SHOP_NOTIFY_EMAIL": "team@karniktochi.com",
 				"EMAIL_FROM": "Карник Точи <porachki@karniktochi.com>",
-				// The Access application that protects the staging Worker's /admin.
-				"ACCESS_TEAM_DOMAIN": "",
-				"ACCESS_AUD": "",
-				// The bucket's public r2.dev address (R2 → karniktochi-media-staging → Settings → Public access).
-				"MEDIA_BASE_URL": "https://REPLACE-with-the-staging-bucket.r2.dev"
+				// The Access application "Karnik Tochi staging admin" (staging.karniktochi.com/admin).
+				"ACCESS_TEAM_DOMAIN": "karniktochi.cloudflareaccess.com",
+				"ACCESS_AUD": "1981c468e95a1514943b5b441d2cc021eda71c8661bb541bc718a541d1c74be0",
+				// The custom domain on bucket karniktochi-media-staging (its r2.dev address is off).
+				"MEDIA_BASE_URL": "https://media-staging.karniktochi.com"
 			}
 		}
 	}

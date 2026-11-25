@@ -100,3 +100,9 @@ Reason: the user's choice.
 
 **2026-11-24: The photo frame is white whenever a photo is shown (cards, product page, thumbnails, cart, admin preview). The beige frame (`--photo`) stays only for the no-photo placeholder.**
 Reason: the user's click-through of slice 3 step 4. Photos shot on white showed beige bands in the beige frame.
+
+**2026-11-25: Staging runs on subdomains of karniktochi.com: the site at staging.karniktochi.com (custom domain on the Worker `karniktochi-staging`, no workers.dev address) and photos at media-staging.karniktochi.com (custom domain on bucket `karniktochi-media-staging`). r2.dev is not used, on staging or production. Production will be karniktochi.com and media.karniktochi.com.**
+Replaces the r2.dev `MEDIA_BASE_URL` for staging in docs/slice-3-plan.md and the 2026-10-30/2026-11-24 staging setup. Reason: the user's choice once karniktochi.com moved to Cloudflare (2026-11-25). (Noted: r2.dev addresses are rate-limited and uncached; Access protects the staging admin only on staging.karniktochi.com, so the workers.dev address is off.)
+
+**2026-11-25: Resend sends from the domain karniktochi.com in the EU region.**
+Reason: the user's choice when adding the domain in Resend (2026-11-25). Why EU: not recorded.
