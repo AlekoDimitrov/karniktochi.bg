@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-25, staging redeployed with the X-Robots-Tag fix; checklist items I can do alone are done.
-Next: your logged-in checklist items ("Staging checklist results" below).
+Rewritten at the end of every task. Last updated: 2026-11-25, staging checklist run (you logged in, me from Workers logs).
+Next: the small staging follow-ups, then "Open before launch" (both below).
 
 ## Branches
 
@@ -123,7 +123,45 @@ Done by me without logging in:
   10 requests each: home median 12 ms (2–30), product page 8.5 ms (4–14), listing 6 ms (3–23), cart 0 ms
   (0–1). A first round of 5 gave similar spreads, with the highest values on fresh isolates. Higher than
   local (all under 10 ms JS+GC in docs/slice-3-report.md) for the home page; fine under Workers Paid, and
-  cached pages don't run the Worker. Admin and checkout CPU: when you click (I run the tail meanwhile).
+  cached pages don't run the Worker.
+
+You, logged in through Access (12:39–13:59 UTC), recorded by me with `wrangler tail` (74 requests, every
+outcome `ok`, no exceptions, no log lines):
+- **Item 5, product save and purge:** demo-1 saved (POST 303 → `?msg=saved`), quick edit from the products
+  list (POST 303 → `?saved=demo-1`); the next home and product page requests ran the Worker (purged).
+- **Item 9, photos:** 2 uploads (201, 201) on demo-1; one removed (`?msg=photo-remove`). The staging database
+  has one photo row left (`ph_29b8f921b8df`, `products/demo-1/9e31149e91ecaaae`, 400/900/1200), and its three
+  files load from media-staging.karniktochi.com (200, image/webp). **Not checked:** that the removed photo's
+  files are gone. Its key was in the deleted row, and listing the bucket needs a token (my attempt with
+  wrangler's login token was blocked; I didn't work around it). You: R2 → karniktochi-media-staging →
+  Objects → `products/demo-1/` should hold exactly 3 objects, all starting `9e31149e91ecaaae-`.
+- **Item 6, email:** 2 cash-on-delivery orders (POST /api/orders 201, 201). The checkout logs every failed
+  email with `console.error`; none was logged, so Resend accepted all 4 emails. Receipt in your mailbox
+  (customer email, team@ notification, a reply reaching you through orders@) is yours to confirm.
+  Both orders are still `new` (stock for demo-1 stays reserved; harmless, all demos are archived).
+- **Archive all demo products:** POST 303 → `?archived=6`; staging now has 6 archived demo products and
+  nothing published. Next home, listing and category requests ran the Worker (purged).
+- **Item 8, real phone:** you said done; no notes reached me.
+- **Item 4, logged-in cross-site POST:** skipped by you on purpose (covered locally by the admin-origin tests
+  and `check:admin-paths`).
+
+**CPU on Cloudflare, per step** (`cpuTime`, ms; one value per request; few products, so lists are small):
+
+| Step | CPU ms | Local (slice 2/3 reports) |
+|---|---|---|
+| Admin products list (GET) | 39, 21, 16, 5, 23, 8, 14, 19, 22 (median 19) | 11–15 |
+| Admin product edit page (GET) | 18, 26, 30, 8, 6, 23, 27 | |
+| Product save (POST) | 12, 7; photo remove 5 | 12.6–15.9 |
+| Quick edit (POST) | 7 | |
+| Photo upload (POST) | 6, 3 | 18–22 |
+| Archive all demo products (POST) | 21 | |
+| Checkout submit (POST /api/orders) | 5, 4 | 9–15 |
+| Thank-you page | 11, 16 | |
+| Cart lines (GET /api/cart-lines) | 16, 1, 1, 0 | |
+| Shop pages (uncached) | home 3–17, product 13–24, listing 8–21, category 12 | under 10 |
+
+The POSTs are cheaper on Cloudflare than locally. The admin GET pages are the most expensive, up to 39 ms
+(the first request of the session). All are far below the Workers Paid limit (30 s).
 
 ### Steps 1–3 (stop 1)
 
@@ -289,7 +327,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Staging: your logged-in checklist items.
+- Staging checklist: run; follow-ups in "Open before launch".
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -389,6 +427,36 @@ orders (docs/slice-2-report.md):
 - `npm test`: 26 files, 314 tests, all passing;
 - `npm run build`: completes, check-hidden passes; `CLOUDFLARE_ENV=staging npm run build` and `wrangler deploy --dry-run` show the staging bindings and route.
 - `check:admin-paths`: all 14 spellings 403 (private, no-store) or 404, including the photo endpoint.
+
+## Open before launch (2026-11-25)
+
+Staging follow-ups (small):
+1. **Plain HTTP is served, not redirected:** `http://staging.karniktochi.com/` answers 200 (seen in the logs
+   from your phone or browser, and with curl). You, dashboard: karniktochi.com → SSL/TLS → Edge
+   Certificates → **Always Use HTTPS** on (covers production too). HSTS: decide at launch.
+2. Confirm in R2 that the removed photo's files are gone (see item 9 above).
+3. Confirm the 3 emails arrived (customer, team@, reply via orders@).
+4. `/favicon.ico` is a 404 rendered by the Worker (8–10 ms CPU each time a browser asks). Add a static
+   `public/favicon.ico`.
+5. `/robots.txt`: a curl got a 200 with 1,248 bytes (probably Cloudflare's managed robots.txt), but a
+   request at 13:39 reached the Worker and got a 404. Decide what robots.txt the launched site serves.
+6. The 2 staging test orders are `new`; cancel them in the admin if you want staging clean.
+
+Launch (production):
+7. Production bucket `karniktochi-media` with custom domain media.karniktochi.com (no production deploy
+   before it exists).
+8. Production database: reset (all tables dropped, migrations 0001–0003 applied fresh) instead of migrated;
+   decide when, relative to the first production deploy of this branch (DECISIONS 2026-10-29).
+9. Access application for karniktochi.com/admin; its AUD and the team domain into the top-level `vars`
+   (now empty, so the production admin would answer 403 to everyone).
+10. Resend: domain Verified; a production key (sending only, karniktochi.com) set as `RESEND_API_KEY` on the
+    Worker `karniktochi`, same method as staging.
+11. Real products and photos in the admin; demo products are left out by the `LAUNCH=1` build.
+12. The 2 `[bracketed]` placeholders in src/i18n/bg.ts (how you choose products; care note).
+13. Legal pages (not built; README: "Legal pages are not yet").
+14. Astro `site` and the Organization JSON-LD, now that karniktochi.com exists (DECISIONS 2026-10-30).
+15. Launch checklist (above and CLAUDE.md): delete `public/_headers`, build with `LAUNCH=1`, deploy; attach
+    karniktochi.com; then `workers_dev: false`.
 
 ## Open decisions for you
 
