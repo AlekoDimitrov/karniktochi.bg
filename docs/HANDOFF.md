@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-25, staging values filled in (nothing remote done).
-Next: your "go" for "Staging setup" steps A–D below, then the staging checklist.
+Rewritten at the end of every task. Last updated: 2026-11-25, staging step A done (staging database migrated).
+Next: you set the Resend key (step C) and say "key set"; then I deploy (D).
 
 ## Branches
 
@@ -66,7 +66,8 @@ karniktochi.com and media.karniktochi.com.
 
 ### After your "go", in this order (production Worker `karniktochi` and its database never touched)
 
-A. **Me, staging database:** `npx wrangler d1 migrations apply karniktochi-staging --env staging --remote`
+A. **Done 2026-11-25** (0001–0003 applied; tables orders, order_items, products, variants, stock, product_photos;
+   6 demo products published, 6 variants, 6 stock rows, 0 orders, 0 photos). **Me, staging database:** `npx wrangler d1 migrations apply karniktochi-staging --env staging --remote`
    (0001–0003), then list its tables and count products. 0002 inserts the 6 demo products (demo-1…6), so
    staging starts with those.
 B. **Seeding: none.** The 6 demo products are enough to test; you add real ones in the admin, and "Archive
@@ -251,7 +252,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Staging: config done; waiting for your "go" ("Staging setup", A–D).
+- Staging: A done; waiting for "key set" (C), then D.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -368,8 +369,7 @@ orders (docs/slice-2-report.md):
 ## Open questions
 
 - **Open before staging:**
-  1. **Staging database and bucket: created by you, configured; migrations not applied** ("Staging setup",
-     A). The production database `karniktochi` is not reset for staging, because the live Worker still
+  1. **Staging database and bucket: created by you, configured; migrations 0001–0003 applied** (2026-11-25). The production database `karniktochi` is not reset for staging, because the live Worker still
      runs main, which expects the old schema.
   2. **Workers Paid:** on (2026-11-25).
   3. **Production photos:** no production deploy before `media.karniktochi.com` exists (bucket
