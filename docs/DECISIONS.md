@@ -106,3 +106,9 @@ Replaces the r2.dev `MEDIA_BASE_URL` for staging in docs/slice-3-plan.md and the
 
 **2026-11-25: Resend sends from the domain karniktochi.com in the EU region.**
 Reason: the user's choice when adding the domain in Resend (2026-11-25). Why EU: not recorded.
+
+**2026-11-25: The sender address is orders@karniktochi.com (replaces porachki@karniktochi.com), on staging and production. Customer emails have no Reply-To, so a customer's reply goes to orders@. Shop notifications go to team@karniktochi.com (Reply-To: the customer).**
+Reason: the user's choice (2026-11-25).
+
+**2026-11-25: Receiving mail is handled by Cloudflare Email Routing: orders@ and team@karniktochi.com forward to the user's mailbox. Resend only sends (its inbox was deleted).**
+Reason: the user's choice (2026-11-25).

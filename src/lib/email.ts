@@ -71,7 +71,8 @@ export function customerEmail(o: Order, bank: BankDetails | null) {
 export function orderEmails(o: Order, cfg: { from: string; notify: string }, bank: BankDetails | null): Email[] {
   const out: Email[] = [];
   if (cfg.notify) out.push({ from: cfg.from, to: cfg.notify, replyTo: o.email ?? undefined, ...ownerEmail(o) });
-  if (o.email) out.push({ from: cfg.from, to: o.email, replyTo: cfg.notify || undefined, ...customerEmail(o, bank) });
+  // No Reply-To: the customer's reply goes to the sender address (orders@), which forwards to the shop's mailbox.
+  if (o.email) out.push({ from: cfg.from, to: o.email, ...customerEmail(o, bank) });
   return out;
 }
 

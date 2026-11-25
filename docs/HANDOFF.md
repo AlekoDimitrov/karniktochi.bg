@@ -49,11 +49,14 @@ karniktochi.com and media.karniktochi.com.
 - Access application "Karnik Tochi staging admin" on staging.karniktochi.com/admin (team domain
   karniktochi.cloudflareaccess.com).
 - Resend: domain karniktochi.com added in the EU region; DNS verification in progress. No API key yet.
+- Mail: the sender is orders@karniktochi.com (was porachki@). Cloudflare Email Routing forwards orders@
+  (customer replies; customer emails carry no Reply-To) and team@ (shop notifications) to your mailbox.
+  The Resend inbox is deleted; Resend only sends (DECISIONS 2026-11-25).
 
 ### Done by me (2026-11-25), nothing remote touched
 
 - `env.staging` in `wrangler.jsonc`: database id, bucket, `MEDIA_BASE_URL` https://media-staging.karniktochi.com,
-  `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, sender `porachki@karniktochi.com` (unchanged), a custom-domain route
+  `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`, sender `orders@karniktochi.com`, a custom-domain route
   for staging.karniktochi.com, and `workers_dev: false` (Access covers only the custom domain).
 - Checked: `CLOUDFLARE_ENV=staging npm run build` writes `karniktochi-staging` with those bindings and the
   route; `npx wrangler deploy --dry-run` lists them (uploads nothing). The normal build is unchanged

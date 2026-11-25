@@ -26,14 +26,15 @@ const order = (over: Partial<Order> = {}): Order => ({
   ],
   ...over,
 });
-const cfg = { from: 'Карник Точи <porachki@karniktochi.com>', notify: 'team@karniktochi.com' };
+const cfg = { from: 'Карник Точи <orders@karniktochi.com>', notify: 'team@karniktochi.com' };
 const bank = { iban: 'BG80BNBG96611020345678', bic: 'BNBGBGSF', holder: 'Карник ЕООД' };
 
 describe('order emails', () => {
   it('sends one to the shop and one to the customer, each replying to the other', () => {
     const [shop, customer] = orderEmails(order(), cfg, bank);
     expect(shop).toMatchObject({ from: cfg.from, to: 'team@karniktochi.com', replyTo: 'ivan@example.test' });
-    expect(customer).toMatchObject({ from: cfg.from, to: 'ivan@example.test', replyTo: 'team@karniktochi.com' });
+    expect(customer).toMatchObject({ from: cfg.from, to: 'ivan@example.test' });
+    expect(customer.replyTo).toBeUndefined(); // replies go to the sender, orders@
     expect(customer.subject).toBe('Поръчка KT-00007 е получена — Карник Точи');
   });
 
