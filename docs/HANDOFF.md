@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-25, staging deployed (steps A–D done) at https://staging.karniktochi.com.
-Next: the staging checklist (E), you and me. Open finding: X-Robots-Tag on Worker pages (checklist item 3).
+Rewritten at the end of every task. Last updated: 2026-11-25, staging redeployed with the X-Robots-Tag fix; checklist items I can do alone are done.
+Next: your logged-in checklist items ("Staging checklist results" below).
 
 ## Branches
 
@@ -103,6 +103,27 @@ D. **Done 2026-11-25**, version `79b3fb7c-6ff2-4c1c-be5b-63c66b7d1bb6` from `1bc
    `npm run build` again, so `dist/` is the production build. Then a first look: home over HTTPS,
    `X-Robots-Tag` present, /admin/ gives the Access login.
 E. **Staging checklist** below, you and me.
+
+### Staging checklist results (2026-11-25, version `5c83c247-8258-44d8-8032-85ef752b7145` from `ea52fb9`)
+
+Done by me without logging in:
+- **Item 3, noindex:** fixed in `ea52fb9` (Worker adds `X-Robots-Tag: noindex, nofollow` to every response
+  until `LAUNCH=1`). `curl -sI`: `/`, `/produkti/demo-1/`, `/kolichka/`, `/produkti/`,
+  `/kategoriya/gotvarski/`, a 404 page and `/api/stock` all carry it.
+- **Item 5 (anonymous part), Workers Cache:** `/produkti/demo-2/` three times: `cf-cache-status: MISS`, then
+  `HIT` (age 1), `HIT` (age 2). Cart is `BYPASS` (`no-store`), as intended.
+- **Item 4 (anonymous part), Access:** GET `/admin/`, `/admin/products/`, `/%61dmin/`, `//admin/`, GET and POST
+  `/admin/products/demo-1/photos/`, POST `/admin/products/demo-1/`: all 302 to the Access login, never 200.
+  A cross-site POST (`Origin: https://evil.example`) without login is also stopped by Access (302). The
+  logged-in cross-site case (403 from the middleware) needs your Access cookie: your item 6.
+- **Photos bucket:** media-staging.karniktochi.com returns 404 for a missing object, for `/`, `/?list-type=2`
+  and `/?prefix=products/`; no listing.
+- **Items 7/11 (customer pages), real CPU** from `wrangler tail karniktochi-staging --format json`
+  (`cpuTime` per request; read-only), cache bypassed with a unique query string, 6 demo products,
+  10 requests each: home median 12 ms (2–30), product page 8.5 ms (4–14), listing 6 ms (3–23), cart 0 ms
+  (0–1). A first round of 5 gave similar spreads, with the highest values on fresh isolates. Higher than
+  local (all under 10 ms JS+GC in docs/slice-3-report.md) for the home page; fine under Workers Paid, and
+  cached pages don't run the Worker. Admin and checkout CPU: when you click (I run the tail meanwhile).
 
 ### Steps 1–3 (stop 1)
 
@@ -268,7 +289,7 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Staging: deployed; staging checklist next.
+- Staging: your logged-in checklist items.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
