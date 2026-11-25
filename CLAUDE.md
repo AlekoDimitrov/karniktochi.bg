@@ -41,8 +41,8 @@ Do not deploy unless explicitly asked.
 
 ## Launch checklist
 
-The site is currently hidden from search engines by `public/_headers` (`X-Robots-Tag: noindex, nofollow` on all paths). At launch, in this order:
+The site is currently hidden from search engines in three places: `public/_headers` (`X-Robots-Tag` on static assets), the Worker (`X-Robots-Tag` on every response it sends, `src/lib/robots.ts`) and the `<meta name="robots">` tag (`src/layouts/Layout.astro`). The last two go away only in a build with `LAUNCH=1`, which also hides the demo products. At launch, in this order:
 
-1. Delete `public/_headers` and deploy.
+1. Delete `public/_headers`, build with `LAUNCH=1 npm run build`, and deploy.
 2. Attach the karniktochi.com custom domain to the Worker.
 3. After the domain is attached and serving, disable the `workers.dev` address (`"workers_dev": false` in `wrangler.jsonc`, or in the Cloudflare dashboard).

@@ -18,6 +18,13 @@ Deploys are manual with wrangler. Pushing to GitHub is only a backup and builds 
 is active on Cloudflare (nameservers moved from Namecheap, 2026-11-25); production will later be
 karniktochi.com and media.karniktochi.com.
 
+## Launch checklist (also in CLAUDE.md)
+
+Launch needs **both**: delete `public/_headers` (static assets) **and** build with `LAUNCH=1`
+(`LAUNCH=1 npm run build`). Without `LAUNCH=1`, every Worker response keeps `X-Robots-Tag: noindex, nofollow`
+(`src/lib/robots.ts`, via `src/middleware.ts`) and every page keeps the noindex meta tag; demo products also
+stay visible. Then attach karniktochi.com, then turn off workers.dev.
+
 ## Slice 3 status: built, all 6 steps done
 
 ### Since stop 2

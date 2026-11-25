@@ -3,6 +3,10 @@ import { env } from 'cloudflare:workers';
 import { verifyAccess } from './lib/access';
 import { isSameOriginRequest } from './lib/admin-origin';
 import { cacheControlFor } from './lib/cache-policy';
+import { NOINDEX, robotsHeaders } from './lib/robots';
+
+// No X-Robots-Tag once the site is built with LAUNCH=1 (src/lib/robots.ts).
+const robots = robotsHeaders(import.meta.env.LAUNCH);
 
 // Response.redirect() and some fetched responses have immutable headers; copy those before setting.
 function setHeaders(res: Response, headers: Record<string, string>): Response {
@@ -25,12 +29,12 @@ export const onRequest = defineMiddleware(async (context, next) => {
       status: res.status,
       setsCookie: res.headers.has('Set-Cookie'),
     });
-    return setHeaders(res, { 'Cache-Control': cacheControl });
+    return setHeaders(res, { 'Cache-Control': cacheControl, ...robots });
   }
 
   // Admin responses are never cached anywhere. The cache key doesn't include the host, so this matters
   // even though Cloudflare Access only protects /admin.
-  const adminHeaders = { 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex, nofollow' };
+  const adminHeaders = { 'Cache-Control': 'private, no-store', 'X-Robots-Tag': NOINDEX };
   // Local dev has no Cloudflare Access in front of it.
   if (!import.meta.env.DEV) {
     const user = await verifyAccess(context.request, env.ACCESS_TEAM_DOMAIN, env.ACCESS_AUD);
