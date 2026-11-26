@@ -1,6 +1,6 @@
 # Slice 4 plan: photo zoom, admin photo undo and drag order, "order accepted"
 
-Status: **draft, waiting for your yes.** No code written. Branch `products-in-d1`, local only; staging is
+Status: **approved 2026-11-26** (decisions recorded in docs/DECISIONS.md, 2026-11-26; thank-you email line changed to "Ще получите имейл с подробностите на {email}."). Branch `products-in-d1`, local only; staging is
 redeployed only after everything is approved. Production is never touched.
 
 Four items, built in this order: 2 + 3 (admin photos), then 1 (zoom), then 4 (orders). Decisions I need are

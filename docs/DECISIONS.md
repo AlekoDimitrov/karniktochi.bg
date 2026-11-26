@@ -112,3 +112,23 @@ Reason: the user's choice (2026-11-25).
 
 **2026-11-25: Receiving mail is handled by Cloudflare Email Routing: orders@ and team@karniktochi.com forward to the user's mailbox. Resend only sends (its inbox was deleted).**
 Reason: the user's choice (2026-11-25).
+
+**2026-11-26: Slice 4 choices (see docs/slice-4-plan.md, "Decisions needed").**
+- A 2,400 px zoom rendition is made only for photos at least 2,100 px on the long side (at min(long side,
+  2,400)). Limits: 2.5 MB for that file, 5 MB per upload request. Only the fullscreen view may load it;
+  every srcset on normal pages (cards, product page, thumbnails, cart, og:image) stays capped at 1,800,
+  checked by a test. Photos uploaded before keep 400/900/1,800.
+- Customers are told the order is received and accepted when they place it. The phone call stays, and is
+  described to them as arranging delivery ("за да уточним доставката"). Thank-you page, customer email and
+  the three checkout hints use the texts in the plan; the thank-you email line is "Ще получите имейл с
+  подробностите на {email}." Status changes never email the customer (covered by a test).
+  Refines the 2026-10-29 entry: every order is still phoned before it ships, but the call no longer
+  decides whether the order is accepted.
+- Admin "to call" list: option A. Status `new` is shown as "To call", `confirmed` as "Called"; the menu shows
+  the count to call; phone numbers are tap-to-call links. Stored values unchanged, no migration.
+- A photo removed in the admin is hidden at once with Undo for 10 seconds; the real delete (D1 first, then
+  R2 best-effort) is sent when the timer ends, when the page is left (pagehide), or before any other photo
+  change. Switching tabs or apps doesn't send it early.
+- Desktop hover zoom is drawn inside the photo frame. No third-party library (PhotoSwipe 5 is the fallback
+  if the phone gestures turn out poor).
+Reason: the user's answers to the plan's decisions (2026-11-26).
