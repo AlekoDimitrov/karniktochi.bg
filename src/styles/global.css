@@ -483,8 +483,20 @@ input[aria-invalid='true'] { border-color: #b3261e; }
 .ph-item__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .ph-item__actions > .admin-confirm { flex-basis: 100%; margin-top: 0; }
 .ph-item__remove { display: inline-flex; align-items: center; min-height: 44px; color: #8c1d18; }
-.ph-reload { margin: 0; }
-.ph-reload[hidden] { display: none; }
+.ph-item { position: relative; background: #fff; }
+.ph-item__handle { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; width: 32px; min-height: 200px; font-size: 22px; line-height: 1; color: var(--muted); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: var(--radius); background: var(--ground); }
+.ph-item__handle:hover { color: var(--ink); background: var(--sand); }
+.ph-list--dragging, .ph-list--dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+@media (pointer: fine) { .ph-item__handle:not([hidden]) ~ .ph-item__img { cursor: grab; } }
+.ph-item--dragging { z-index: 2; box-shadow: 0 10px 30px rgba(23, 35, 31, 0.25); border-radius: var(--radius); }
+.ph-item__actions form[hidden] { display: none; }
+/* Removed photos waiting for their Undo time */
+.ph-undo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ph-undo:empty { display: none; }
+.ph-undo__row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 4px 12px; background: var(--sand); border-radius: var(--radius); }
+.ph-undo__btn { min-height: 44px; padding: 0 8px; border: 0; background: none; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; color: var(--ink); }
+.ph-undo__btn:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+#photos-title:focus { outline: none; }
 .pf-size__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
 .pf-size__actions [data-move] { display: inline-flex; gap: 8px; }
 .pf-size__actions [data-move][hidden] { display: none; }

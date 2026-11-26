@@ -17,8 +17,9 @@ import {
   scaledSize,
   type PhotoFormat,
 } from '../lib/photo-sizes';
+import { enhancePhotoList } from './admin-photo-list';
 
-type UploadedPhoto = { id: string; key: string; format: PhotoFormat; sizes: number[]; width: number; height: number };
+type UploadedPhoto = { id: string; key: string; format: PhotoFormat; sizes: number[]; width: number; height: number; alt: string };
 type UploadAnswer = { ok: true; photo: UploadedPhoto } | { ok: false; error: string };
 
 class PhotoError extends Error {}
@@ -132,27 +133,28 @@ export function enhancePhotos(section: HTMLElement | null) {
   const list = section?.querySelector<HTMLOListElement>('[data-photo-list]');
   const countEl = section?.querySelector<HTMLElement>('[data-photo-count]');
   const full = section?.querySelector<HTMLElement>('[data-photo-full]');
-  const reload = section?.querySelector<HTMLElement>('[data-photo-reload]');
-  if (!section || !drop || !input || !queue || !list || !countEl || !full || !reload) return;
+  if (!section || !drop || !input || !queue || !list || !countEl || !full) return;
 
   const productId = section.dataset.product!;
-  const mediaBase = section.dataset.mediaBase!.replace(/\/+$/, '');
   const url = `/admin/products/${encodeURIComponent(productId)}/photos/`;
-  let count = Number(section.dataset.count) || 0;
   const pending: { file: File; row: HTMLLIElement }[] = [];
   let busy = false;
 
-  section.querySelector<HTMLElement>('[data-photo-nojs]')!.hidden = true;
-  drop.hidden = false;
-
-  const showCount = () => {
-    countEl.textContent = `${count} of ${MAX_PHOTOS}`;
-    const isFull = count >= MAX_PHOTOS;
+  // The list counts the photos shown (a removed photo waiting for its Undo time doesn't count).
+  const showCount = (n: number) => {
+    countEl.textContent = `${n} of ${MAX_PHOTOS}`;
+    const isFull = n >= MAX_PHOTOS;
     full.hidden = !isFull;
     input.disabled = isFull;
     drop.classList.toggle('ph-drop--full', isFull);
   };
-  showCount();
+  const maybeList = enhancePhotoList(section, showCount);
+  if (!maybeList) return;
+  const photoList = maybeList;
+  const count = () => photoList.count();
+
+  section.querySelector<HTMLElement>('[data-photo-nojs]')!.hidden = true;
+  drop.hidden = false;
 
   const addRow = (file: File) => {
     const row = document.createElement('li');
@@ -175,39 +177,14 @@ export function enhancePhotos(section: HTMLElement | null) {
     row.classList.toggle('ph-queue__row--error', kind === 'error');
   };
 
-  // A new photo appears at the end of the list; moving, removing and alt text need a reload.
-  const showUploaded = (photo: UploadedPhoto) => {
-    const side = [...photo.sizes].reverse().find((s) => s <= 400) ?? photo.sizes[0];
-    const size = scaledSize(photo.width, photo.height, side);
-    const li = document.createElement('li');
-    li.className = 'ph-item ph-item--new';
-    const img = document.createElement('img');
-    img.className = 'ph-item__img';
-    img.src = `${mediaBase}/${photo.key}-${side}.${photo.format === 'webp' ? 'webp' : 'jpg'}`;
-    img.width = size.width;
-    img.height = size.height;
-    img.alt = '';
-    const body = document.createElement('div');
-    body.className = 'ph-item__body';
-    const title = document.createElement('p');
-    title.className = 'ph-item__title';
-    title.innerHTML = '<strong></strong> <span class="badge">New</span> <span class="muted"></span>';
-    title.querySelector('strong')!.textContent = `Photo ${count}`;
-    title.querySelector('.muted')!.textContent = `${photo.width} × ${photo.height}${photo.format === 'jpeg' ? ' · JPEG' : ''}`;
-    body.appendChild(title);
-    li.appendChild(img);
-    li.appendChild(body);
-    list.appendChild(li);
-    reload.hidden = false;
-    section.querySelector('[data-photo-warning]')?.remove();
-  };
-
   async function run() {
     if (busy) return;
     busy = true;
     while (pending.length) {
       const { file, row } = pending.shift()!;
-      if (count >= MAX_PHOTOS) {
+      // A removed photo waiting for its Undo time is removed for real first, so the server counts the same.
+      await photoList.settle();
+      if (count() >= MAX_PHOTOS) {
         setState(row, `Not added: this product already has ${MAX_PHOTOS} photos.`, 'error');
         continue;
       }
@@ -216,9 +193,7 @@ export function enhancePhotos(section: HTMLElement | null) {
         setState(row, 'Uploading 0%');
         const answer = await upload(url, files, (p) => setState(row, `Uploading ${p}%`));
         if (!answer.ok) throw new PhotoError(answer.error);
-        count++;
-        showCount();
-        showUploaded(answer.photo);
+        photoList.add(answer.photo);
         setState(row, 'Done', 'done');
       } catch (e) {
         setState(row, e instanceof PhotoError ? e.message : 'Something went wrong with this photo.', 'error');
@@ -240,13 +215,13 @@ export function enhancePhotos(section: HTMLElement | null) {
   });
   drop.addEventListener('dragover', (e) => {
     e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = count >= MAX_PHOTOS ? 'none' : 'copy';
+    if (e.dataTransfer) e.dataTransfer.dropEffect = count() >= MAX_PHOTOS ? 'none' : 'copy';
     drop.classList.add('ph-drop--over');
   });
   drop.addEventListener('dragleave', () => drop.classList.remove('ph-drop--over'));
   drop.addEventListener('drop', (e) => {
     e.preventDefault();
     drop.classList.remove('ph-drop--over');
-    if (count < MAX_PHOTOS) take(e.dataTransfer?.files ?? null);
+    if (count() < MAX_PHOTOS) take(e.dataTransfer?.files ?? null);
   });
 }

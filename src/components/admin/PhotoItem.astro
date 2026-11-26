@@ -1,0 +1,79 @@
+---
+// One row of the admin photo list (PhotoManager.astro). Rendered for each stored photo, and once with
+// `photo` = null as the <template> that src/scripts/admin-photo-list.ts fills for a photo just uploaded (its id
+// is "__ID__" there). Every action is a plain form posted to the edit page, so it all works without
+// JavaScript; with JavaScript the script takes them over (no page reload) and renumbers the rows.
+import { ALT_MAX } from '../../lib/photo-sizes';
+import { photoSide, photoUrl, renditionSize, type Photo } from '../../lib/photos';
+
+interface Props {
+  photo: Photo | null;
+  /** 0-based position; ignored for the template. */
+  index: number;
+  total: number;
+  self: string;
+  productName: string;
+  mediaBase: string;
+  /** This photo's removal is being confirmed (no-JS flow, ?confirm-photo=). */
+  confirm?: boolean;
+}
+
+const { photo, index, total, self, productName, mediaBase, confirm = false } = Astro.props;
+const id = photo?.id ?? '__ID__';
+const n = index + 1;
+const thumb = photo ? (() => {
+  const side = photoSide(photo, 400);
+  return { src: photoUrl(mediaBase, photo, side), ...renditionSize(photo, side) };
+})() : null;
+const altHint = 'Describe the photo in Bulgarian, e.g. “Гюто Шибата 210 мм, острие отблизо”. Empty: the shop uses the product name.';
+---
+<li class:list={['ph-item', { 'ph-item--new': !photo }]} id={`photo-${id}`} data-photo={id}>
+  <span class="ph-item__handle" data-photo-handle aria-hidden="true" title="Drag to reorder" hidden>⠿</span>
+  <img class="ph-item__img" src={thumb?.src} width={thumb?.width} height={thumb?.height} alt="" loading="lazy" draggable="false" />
+  <div class="ph-item__body">
+    <p class="ph-item__title">
+      <strong>Photo <span data-photo-n>{n}</span></strong>
+      <span class="badge" data-photo-main hidden={index !== 0}>Main photo</span>
+      <span class="muted" data-photo-size>{photo && `${photo.width} × ${photo.height}${photo.format === 'jpeg' ? ' · JPEG' : ''}`}</span>
+    </p>
+    <form method="post" action={self} class="ph-alt" data-photo-alt>
+      <input type="hidden" name="action" value="photo-alt" />
+      <input type="hidden" name="photo" value={id} />
+      <label class="pf-field">
+        <span>Alt text <span class="visually-hidden">for photo <span data-photo-n>{n}</span></span></span>
+        <input name="alt" value={photo?.alt ?? ''} maxlength={ALT_MAX} placeholder={productName} aria-describedby={`alt-hint-${id}`} />
+      </label>
+      <button class="btn btn--outline btn--small" type="submit">Save alt text<span class="visually-hidden"> for photo <span data-photo-n>{n}</span></span></button>
+      <p class="muted pf-hint" id={`alt-hint-${id}`}>{altHint}</p>
+    </form>
+    <div class="ph-item__actions">
+      <form method="post" action={self} data-photo-move="up" hidden={index === 0}>
+        <input type="hidden" name="action" value="photo-move" />
+        <input type="hidden" name="photo" value={id} />
+        <input type="hidden" name="direction" value="up" />
+        <button class="btn btn--outline btn--small" type="submit">Move up<span class="visually-hidden"> photo <span data-photo-n>{n}</span></span></button>
+      </form>
+      <form method="post" action={self} data-photo-move="down" hidden={index >= total - 1}>
+        <input type="hidden" name="action" value="photo-move" />
+        <input type="hidden" name="photo" value={id} />
+        <input type="hidden" name="direction" value="down" />
+        <button class="btn btn--outline btn--small" type="submit">Move down<span class="visually-hidden"> photo <span data-photo-n>{n}</span></span></button>
+      </form>
+      {confirm ? (
+        <div class="admin-confirm" role="alertdialog" aria-labelledby={`remove-${id}`}>
+          <p id={`remove-${id}`}><strong>Remove photo {n}?</strong> Its files are deleted. This can’t be undone.</p>
+          <form method="post" action={self} class="admin-confirm__actions">
+            <input type="hidden" name="action" value="photo-remove" />
+            <input type="hidden" name="photo" value={id} />
+            <button class="btn btn--accent" type="submit">Yes, remove photo {n}</button>
+            <a href={`${self}#photo-${id}`}>Cancel</a>
+          </form>
+        </div>
+      ) : (
+        <a class="ph-item__remove" href={`${self}?confirm-photo=${encodeURIComponent(id)}#photo-${id}`} data-photo-remove>
+          <span data-photo-remove-label>Remove…</span><span class="visually-hidden"> photo <span data-photo-n>{n}</span></span>
+        </a>
+      )}
+    </div>
+  </div>
+</li>
