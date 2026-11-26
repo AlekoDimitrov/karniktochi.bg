@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-25, staging checklist done; favicon.ico and our own robots.txt on staging.
-Next: "Open before launch" (below), the production items.
+Rewritten at the end of every task. Last updated: 2026-11-26, slice 4 plan written (docs/slice-4-plan.md), waiting for your yes.
+Next: your answers to the 5 decisions in docs/slice-4-plan.md, then slice 4 (no code written yet). After that, "Open before launch" (below).
 
 ## Branches
 
@@ -327,7 +327,8 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Nothing. Staging checklist done; next is "Open before launch" (production).
+- Slice 4 (photo zoom, admin photo Undo and drag order, "order accepted" texts and "To call"): plan only,
+  `docs/slice-4-plan.md`, waiting for approval. No code changed.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
