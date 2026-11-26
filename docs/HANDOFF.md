@@ -1,7 +1,7 @@
 # Handoff
 
-Rewritten at the end of every task. Last updated: 2026-11-26, slice 4 plan written (docs/slice-4-plan.md), waiting for your yes.
-Next: your answers to the 5 decisions in docs/slice-4-plan.md, then slice 4 (no code written yet). After that, "Open before launch" (below).
+Rewritten at the end of every task. Last updated: 2026-11-26, slice 4 stop 1 (admin photos: Undo and drag order) ready for your click-through.
+Next: your click-through of stop 1, then slice 4 item 1 (zoom), stop 2, item 4, stop 3; staging only after all three are approved. After that, "Open before launch" (below).
 
 ## Branches
 
@@ -24,6 +24,41 @@ Launch needs **both**: delete `public/_headers` (static assets) **and** build wi
 (`LAUNCH=1 npm run build`). Without `LAUNCH=1`, every Worker response keeps `X-Robots-Tag: noindex, nofollow`
 (`src/lib/robots.ts`, via `src/middleware.ts`) and every page keeps the noindex meta tag; demo products also
 stay visible. Then attach karniktochi.com, then turn off workers.dev.
+
+## Slice 4 status: stop 1 (items 2 + 3, admin photos), ready for your click-through
+
+What changed on the edit page's Photos section (with JavaScript; without it everything is as before):
+- **Remove** (no "…", no confirmation): the photo disappears, the others renumber, and "Photo 3 removed.
+  Undo" shows for 10 s (focus moves to Undo). The real delete (`POST …/photos/remove/`: D1 batch, then R2
+  and the purge in `waitUntil`) is sent when the time is up, when you leave the page (`pagehide`, keepalive),
+  or before any other photo change (move, drag, upload). Switching tabs doesn't send it early.
+- **Reload right after removing:** the next page load could be rendered before the delete finished and show
+  the photo again; the page now keeps the ids for the tab (sessionStorage), hides those rows on the next load
+  and sends the delete again (a repeat is harmless).
+- **Drag and drop:** the ⠿ handle (mouse: also the photo; touch: the handle only, so the page scrolls).
+  Escape cancels. Saved at once (`POST …/photos/order/`, the full list; refused with nothing changed if the
+  photos changed in another tab, and the list goes back). Move up/down also save without a reload, focus
+  stays on the moved photo's button.
+- **Alt text** saves without a reload. **New uploads** get the full row at once; the "Reload the page" note is
+  gone. The "Published without photos" warning comes and goes with the count.
+- Unsaved typing in the product form is never touched by any of this.
+
+Checked by me in Chrome (astro dev from a scratch worktree on :4322, its own local data; your local
+database untouched), with real requests: remove → Undo (nothing deleted after 11 s; focus back on Remove;
+typing kept); remove → wait (row there at 5 s, gone at 11 s, all 3 files 404); remove → reload with a dirty
+form (the "leave?" prompt cancelled the reload: nothing sent, then the timer deleted it); remove → reload with
+a clean form (sent on pagehide: row and files gone, and the reloaded page doesn't show it); mouse drag to
+the top (saved, new main photo); keyboard Move down ×2 (focus kept); touch emulation: dragging from the photo
+does nothing, from the handle reorders and saves; Escape mid-drag restores; remove then Move at once
+(removal sent first, then the order); alt text; a dropped PNG upload (full row, ids filled in); a stale page
+(another request removed a photo, then Move: refused, list restored, message); 390 px (no sideways scroll);
+no-JS move form (303) and remove confirmation still work; the JSON endpoint without Origin → 403.
+Bugs found and fixed during the check: the drag ended early (moving the row dropped the pointer capture; now
+captured by the list), and the reload case above.
+
+**Your click-through (stop 1):** desktop and phone. On a real phone: dragging by the handle, page scrolling
+over the photos, Undo, and the iPhone case of closing the tab during the 10 s (the photo may stay if Safari
+skips `pagehide`; that is the safe direction).
 
 ## Slice 3 status: built, all 6 steps done
 
@@ -327,8 +362,9 @@ orders (docs/slice-2-report.md):
 
 ## In progress
 
-- Slice 4 (photo zoom, admin photo Undo and drag order, "order accepted" texts and "To call"): plan only,
-  `docs/slice-4-plan.md`, waiting for approval. No code changed.
+- Slice 4 (docs/slice-4-plan.md, approved 2026-11-26, decisions in DECISIONS 2026-11-26).
+  - **Stop 1 reached: items 2 + 3 (admin photos) built**, commits `8d250a1` (server) and `fa6e8a5` (page).
+  - Next after your yes: item 1 (zoom; 2,400 px rendition first), then item 4.
 
 ## Tested in a browser (astro dev, local database from seed:dev)
 
@@ -425,7 +461,7 @@ orders (docs/slice-2-report.md):
 ## Test and build results (2026-11-25, products-in-d1, after the staging values)
 
 - `npx astro check`: 0 errors, 0 warnings, 1 hint (unused variable in scripts/profile.mjs, old);
-- `npm test`: 26 files, 314 tests, all passing;
+- `npm test`: 28 files, 339 tests, all passing (2026-11-26, slice 4 stop 1);
 - `npm run build`: completes, check-hidden passes; `CLOUDFLARE_ENV=staging npm run build` and `wrangler deploy --dry-run` show the staging bindings and route.
 - `check:admin-paths`: all 14 spellings 403 (private, no-store) or 404, including the photo endpoint.
 
