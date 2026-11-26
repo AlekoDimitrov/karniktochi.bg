@@ -246,21 +246,59 @@ export type PhotoActionResult = { ok: true } | { ok: false; error: string };
 
 const GONE = 'That photo is no longer on this product. Reload the page.';
 
-async function getPhoto(db: D1Database, productId: string, photoId: string): Promise<Photo | null> {
-  const row = await db
-    .prepare(`SELECT ${PHOTO_COLUMNS} FROM product_photos ph WHERE ph.id = ? AND ph.product_id = ?`)
-    .bind(photoId, productId)
-    .first<PhotoRow>();
-  return row ? toPhoto(row) : null;
+/**
+ * Removes photos of a product from D1: the rows and the position gap, in one batch (all or nothing). Ids that
+ * aren't on the product (already removed, or another product's) are skipped. Returns the ids removed and the
+ * R2 keys of their renditions, which the caller deletes afterwards with deleteObjects (best-effort).
+ */
+export async function removePhotoRows(
+  db: D1Database,
+  productId: string,
+  photoIds: string[],
+): Promise<{ removed: string[]; objectKeys: string[] }> {
+  const ids = [...new Set(photoIds)];
+  if (!ids.length) return { removed: [], objectKeys: [] };
+  const marks = ids.map(() => '?').join(', ');
+  const [deleted] = await db.batch([
+    db
+      .prepare(`DELETE FROM product_photos WHERE product_id = ? AND id IN (${marks}) RETURNING ${PHOTO_COLUMNS.replace(/ph\./g, '')}`)
+      .bind(productId, ...ids),
+    renumber(db, productId),
+  ]);
+  const photos = (deleted.results as PhotoRow[]).map(toPhoto);
+  return { removed: photos.map((p) => p.id), objectKeys: objectKeysOf(photos) };
 }
 
 /** Removes a photo: the row and the position gap in one batch, then its R2 objects. */
 export async function removePhoto(db: D1Database, bucket: R2Bucket, productId: string, photoId: string): Promise<PhotoActionResult> {
-  const photo = await getPhoto(db, productId, photoId);
-  if (!photo) return { ok: false, error: GONE };
-  await db.batch([db.prepare('DELETE FROM product_photos WHERE id = ? AND product_id = ?').bind(photoId, productId), renumber(db, productId)]);
-  await deleteObjects(bucket, objectKeysOf([photo]));
+  const { removed, objectKeys } = await removePhotoRows(db, productId, [photoId]);
+  if (!removed.length) return { ok: false, error: GONE };
+  await deleteObjects(bucket, objectKeys);
   return { ok: true };
+}
+
+export const PHOTOS_CHANGED = 'The photos of this product changed meanwhile (in another tab?). Nothing was changed. Reload the page.';
+
+/**
+ * Puts a product's photos in the given order (the first is the main photo). `photoIds` must be exactly the
+ * product's photos, each once; otherwise nothing changes. One UPDATE, which itself checks the set again, so a
+ * photo added or removed between the check and the write also leaves everything as it was.
+ */
+export async function reorderPhotos(db: D1Database, productId: string, photoIds: string[]): Promise<PhotoActionResult> {
+  const n = photoIds.length;
+  if (n === 0 || n > MAX_PHOTOS || new Set(photoIds).size !== n) return { ok: false, error: PHOTOS_CHANGED };
+  const idMarks = photoIds.map((_, i) => `?${i + 1}`);
+  const product = `?${n + 1}`;
+  const result = await db
+    .prepare(
+      `UPDATE product_photos SET position = CASE id ${idMarks.map((m, i) => `WHEN ${m} THEN ${i}`).join(' ')} END
+       WHERE product_id = ${product}
+         AND (SELECT COUNT(*) FROM product_photos WHERE product_id = ${product}) = ${n}
+         AND (SELECT COUNT(*) FROM product_photos WHERE product_id = ${product} AND id IN (${idMarks.join(', ')})) = ${n}`,
+    )
+    .bind(...photoIds, productId)
+    .run();
+  return result.meta.changes === n ? { ok: true } : { ok: false, error: PHOTOS_CHANGED };
 }
 
 /** Swaps a photo with the one before it (-1) or after it (+1). At either end nothing changes. */

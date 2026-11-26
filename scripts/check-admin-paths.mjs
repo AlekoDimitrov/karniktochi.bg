@@ -25,6 +25,11 @@ const ADMIN_PATHS = [
   '/admin/products/x/photos/',
   'POST /admin/products/x/photos/',
   'POST /%61dmin/products/x/photos/',
+  // The JSON photo actions (slice 4).
+  'POST /admin/products/x/photos/remove/',
+  'POST /admin/products/x/photos/order/',
+  'POST /admin/products/x/photos/alt/',
+  '/admin/products/x/photos/remove/',
 ];
 
 const port = 8790;

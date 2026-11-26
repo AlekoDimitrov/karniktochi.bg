@@ -4,8 +4,20 @@
 
 import { productPurgeTags, purgeTags, type Purger } from './cache-purge';
 import { imageInfo, type ImageInfo } from './image-info';
-import { UPLOAD_MAX_BYTES, renditionMaxBytes, renditionSides, scaledSize, type PhotoFormat } from './photo-sizes';
-import { addPhoto, cleanAlt, movePhoto, photoHash, removePhoto, setPhotoAlt, type Photo, type PhotoActionResult } from './photos';
+import { MAX_PHOTOS, UPLOAD_MAX_BYTES, renditionMaxBytes, renditionSides, scaledSize, type PhotoFormat } from './photo-sizes';
+import {
+  addPhoto,
+  cleanAlt,
+  deleteObjects,
+  movePhoto,
+  photoHash,
+  removePhoto,
+  removePhotoRows,
+  reorderPhotos,
+  setPhotoAlt,
+  type Photo,
+  type PhotoActionResult,
+} from './photos';
 
 /** A checked upload: its renditions, smallest first, all of one format. */
 export type CheckedUpload = {
@@ -154,3 +166,77 @@ export async function handlePhotoAction(
   return result;
 }
 
+
+// ---- JSON photo actions (the Photos section with JavaScript; no page reload) -------------------------------
+// POST /admin/products/{slug}/photos/{remove|order|alt}/ with a small JSON body. The middleware has already
+// checked Cloudflare Access and the Origin. See docs/slice-4-plan.md, items 2 and 3.
+
+export type JsonPhotoAction = 'remove' | 'order' | 'alt';
+export const isJsonPhotoAction = (action: unknown): action is JsonPhotoAction =>
+  action === 'remove' || action === 'order' || action === 'alt';
+
+export type JsonActionResponse = { status: number; body: { ok: true; removed?: string[] } | { ok: false; error: string } };
+
+/** Largest JSON body accepted: 12 photo ids or 200 characters of alt text fit many times over. */
+const JSON_MAX_BYTES = 8 * 1024;
+const INVALID = 'Invalid request. Nothing was changed.';
+const bad = (error = INVALID): JsonActionResponse => ({ status: 400, body: { ok: false, error } });
+
+const isPhotoId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= 64;
+const photoIdList = (v: unknown): string[] | null =>
+  Array.isArray(v) && v.length >= 1 && v.length <= MAX_PHOTOS && v.every(isPhotoId) ? v : null;
+
+/**
+ * Handles a JSON photo action. `waitUntil` keeps work going after the answer is sent (or the browser has gone):
+ * after a remove, the R2 delete and the purge run there, so a dropped connection after D1 has changed still
+ * deletes the files.
+ * - remove `{ photos: [ids] }`: D1 first (rows and position gap in one batch), then R2 best-effort. Ids already
+ *   gone count as removed, so the same request can safely arrive twice.
+ * - order `{ photos: [ids] }`: exactly the product's photos in the new order, or nothing changes (409).
+ * - alt `{ photo, alt }`.
+ */
+export async function handleJsonPhotoAction(
+  db: D1Database,
+  bucket: R2Bucket,
+  purger: Purger | undefined,
+  productId: string,
+  action: JsonPhotoAction,
+  request: Request,
+  waitUntil: (p: Promise<unknown>) => void,
+): Promise<JsonActionResponse> {
+  if (Number(request.headers.get('Content-Length') ?? 0) > JSON_MAX_BYTES) return bad();
+  const product = await productRef(db, productId);
+  if (!product) return { status: 404, body: { ok: false, error: 'This product no longer exists.' } };
+  let body: Record<string, unknown>;
+  try {
+    const text = await request.text();
+    if (text.length > JSON_MAX_BYTES) return bad();
+    const parsed: unknown = JSON.parse(text);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return bad();
+    body = parsed as Record<string, unknown>;
+  } catch {
+    return bad();
+  }
+
+  if (action === 'remove') {
+    const ids = photoIdList(body.photos);
+    if (!ids) return bad();
+    const { removed, objectKeys } = await removePhotoRows(db, product.id, ids);
+    if (removed.length) waitUntil(Promise.all([deleteObjects(bucket, objectKeys), purgeTags(purger, productPurgeTags(product))]));
+    return { status: 200, body: { ok: true, removed } };
+  }
+
+  let result: PhotoActionResult;
+  if (action === 'order') {
+    const ids = photoIdList(body.photos);
+    if (!ids) return bad();
+    result = await reorderPhotos(db, product.id, ids);
+  } else {
+    if (!isPhotoId(body.photo) || typeof body.alt !== 'string') return bad();
+    result = await setPhotoAlt(db, product.id, body.photo, body.alt);
+    if (!result.ok && result.error.startsWith('Alt text')) return { status: 422, body: result };
+  }
+  if (!result.ok) return { status: 409, body: result };
+  await purgeTags(purger, productPurgeTags(product));
+  return { status: 200, body: { ok: true } };
+}

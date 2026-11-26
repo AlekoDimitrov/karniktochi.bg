@@ -2,8 +2,8 @@
 // The middleware has already checked Cloudflare Access and the Origin. Answers JSON.
 import type { APIRoute } from 'astro';
 import * as workers from 'cloudflare:workers';
-import { purgerFrom } from '../../../../lib/cache-purge';
-import { handleUpload } from '../../../../lib/photo-upload';
+import { purgerFrom } from '../../../../../lib/cache-purge';
+import { handleUpload } from '../../../../../lib/photo-upload';
 
 export const prerender = false;
 

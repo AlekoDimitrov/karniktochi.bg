@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { freshDb } from './d1';
 import { addProduct } from './catalog-fixtures';
 import { fakeJpeg, fakeWebp, renditionsOf, uploadOf } from './photo-fixtures';
-import { checkUpload, handlePhotoAction, handleUpload } from '../src/lib/photo-upload';
+import { checkUpload, handleJsonPhotoAction, handlePhotoAction, handleUpload } from '../src/lib/photo-upload';
 import { addPhoto, listPhotos } from '../src/lib/photos';
 import { productPurgeTags, type Purger } from '../src/lib/cache-purge';
 
@@ -152,6 +152,71 @@ describe('photo actions on the edit page', () => {
       ok: false,
       error: 'Invalid request. Nothing was changed.',
     });
+    expect(purger.purge).not.toHaveBeenCalled();
+  });
+});
+
+describe('JSON photo actions (slice 4)', () => {
+  const post = (body: unknown) =>
+    new Request('http://localhost/admin/products/x/photos/a/', { method: 'POST', body: typeof body === 'string' ? body : JSON.stringify(body) });
+
+  async function setup() {
+    const id = await addProduct(db, { name: 'Гюто', category: 'malki' });
+    const photos = [];
+    for (const seed of [0, 1, 2]) {
+      const r = await addPhoto(db, bucket, await uploadOf(id, { seed }));
+      if (!r.ok) throw new Error('setup');
+      photos.push(r.photo);
+    }
+    const later: Promise<unknown>[] = [];
+    return { id, photos, later, waitUntil: (p: Promise<unknown>) => void later.push(p), tags: { tags: productPurgeTags({ id, category: 'malki' }) } };
+  }
+
+  it('remove: D1 at once; the R2 delete and the purge run in waitUntil; a repeat is ok', async () => {
+    const { id, photos, later, waitUntil, tags } = await setup();
+    const res = await handleJsonPhotoAction(db, bucket, purger, id, 'remove', post({ photos: [photos[0].id, photos[2].id] }), waitUntil);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true });
+    expect((await listPhotos(db, id)).map((p) => [p.id, p.position])).toEqual([[photos[1].id, 0]]);
+    await Promise.all(later);
+    expect((await objects()).every((k) => k.startsWith(photos[1].key))).toBe(true);
+    expect(purger.purge.mock.calls).toEqual([[tags]]);
+
+    const again = await handleJsonPhotoAction(db, bucket, purger, id, 'remove', post({ photos: [photos[0].id] }), waitUntil);
+    expect(again).toEqual({ status: 200, body: { ok: true, removed: [] } });
+    expect(later).toHaveLength(1); // nothing removed, nothing to delete or purge
+  });
+
+  it('order: saves and purges; a stale list is 409 with nothing changed or purged', async () => {
+    const { id, photos, waitUntil, tags } = await setup();
+    const [a, b, c] = photos.map((p) => p.id);
+    expect((await handleJsonPhotoAction(db, bucket, purger, id, 'order', post({ photos: [b, c, a] }), waitUntil)).status).toBe(200);
+    expect((await listPhotos(db, id)).map((p) => p.id)).toEqual([b, c, a]);
+    expect(purger.purge.mock.calls).toEqual([[tags]]);
+    const stale = await handleJsonPhotoAction(db, bucket, purger, id, 'order', post({ photos: [a, b] }), waitUntil);
+    expect(stale.status).toBe(409);
+    expect((await listPhotos(db, id)).map((p) => p.id)).toEqual([b, c, a]);
+    expect(purger.purge).toHaveBeenCalledTimes(1);
+  });
+
+  it('alt: saves and purges; too long is 422; a missing photo 409', async () => {
+    const { id, photos, waitUntil } = await setup();
+    expect((await handleJsonPhotoAction(db, bucket, purger, id, 'alt', post({ photo: photos[1].id, alt: '  Острие  ' }), waitUntil)).status).toBe(200);
+    expect((await listPhotos(db, id))[1].alt).toBe('Острие');
+    expect((await handleJsonPhotoAction(db, bucket, purger, id, 'alt', post({ photo: photos[1].id, alt: 'я'.repeat(201) }), waitUntil)).status).toBe(422);
+    expect((await handleJsonPhotoAction(db, bucket, purger, id, 'alt', post({ photo: 'ph_missing', alt: '' }), waitUntil)).status).toBe(409);
+    expect(purger.purge).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses bad bodies and a missing product, changing and purging nothing', async () => {
+    const { id, photos, later, waitUntil } = await setup();
+    for (const body of ['not json', '[]', 'null', { photos: 'x' }, { photos: [] }, { photos: [1] }, { photos: Array(13).fill('ph_a') }]) {
+      expect((await handleJsonPhotoAction(db, bucket, purger, id, 'remove', post(body), waitUntil)).status).toBe(400);
+    }
+    expect((await handleJsonPhotoAction(db, bucket, purger, id, 'alt', post({ photo: photos[0].id }), waitUntil)).status).toBe(400);
+    expect((await handleJsonPhotoAction(db, bucket, purger, 'nope', 'remove', post({ photos: [photos[0].id] }), waitUntil)).status).toBe(404);
+    expect(await listPhotos(db, id)).toHaveLength(3);
+    expect(later).toHaveLength(0);
     expect(purger.purge).not.toHaveBeenCalled();
   });
 });

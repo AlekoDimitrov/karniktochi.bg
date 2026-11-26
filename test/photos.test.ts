@@ -15,6 +15,8 @@ import {
   photoSrcset,
   photoUrl,
   removePhoto,
+  removePhotoRows,
+  reorderPhotos,
   setPhotoAlt,
   type Photo,
 } from '../src/lib/photos';
@@ -179,6 +181,53 @@ describe('removing, moving and alt text', () => {
     await setPhotoAlt(db, id, p.id, 'x');
     await removePhoto(db, bucket, id, p.id);
     expect(await at()).toBe(before);
+  });
+});
+
+describe('removing several photos and reordering (slice 4)', () => {
+  it('removes several rows in one batch, closes the gaps, and returns exactly their object keys', async () => {
+    const id = await addProduct(db, { name: 'Гюто' });
+    const [p0, p1, p2, p3] = [await add(id, { seed: 0 }), await add(id, { seed: 1 }), await add(id, { seed: 2 }), await add(id, { seed: 3 })];
+    const { removed, objectKeys } = await removePhotoRows(db, id, [p3.id, p1.id]);
+    expect(removed.sort()).toEqual([p1.id, p3.id].sort());
+    expect(objectKeys.sort()).toEqual(objectKeysOf([p1, p3]).sort());
+    expect(await positions(id)).toEqual([[p0.id, 0], [p2.id, 1]]);
+    // D1 only: the objects are the caller's to delete.
+    expect(await objects()).toEqual(objectKeysOf([p0, p1, p2, p3]).sort());
+  });
+
+  it('skips ids already gone or on another product, so the same request can arrive twice', async () => {
+    const id = await addProduct(db, { name: 'Гюто' });
+    const other = await addProduct(db, { name: 'Санто' });
+    const [p0, p1] = [await add(id, { seed: 0 }), await add(id, { seed: 1 })];
+    const theirs = await add(other, { seed: 5 });
+    expect((await removePhotoRows(db, id, [p0.id, p0.id, theirs.id, 'ph_missing'])).removed).toEqual([p0.id]);
+    expect(await removePhotoRows(db, id, [p0.id])).toEqual({ removed: [], objectKeys: [] });
+    expect(await removePhotoRows(db, id, [])).toEqual({ removed: [], objectKeys: [] });
+    expect(await positions(id)).toEqual([[p1.id, 0]]);
+    expect(await positions(other)).toEqual([[theirs.id, 0]]);
+  });
+
+  it('puts the photos in the given order', async () => {
+    const id = await addProduct(db, { name: 'Гюто' });
+    const [a, b, c] = [await add(id, { seed: 0 }), await add(id, { seed: 1 }), await add(id, { seed: 2 })];
+    expect(await reorderPhotos(db, id, [c.id, a.id, b.id])).toEqual({ ok: true });
+    expect(await positions(id)).toEqual([[c.id, 0], [a.id, 1], [b.id, 2]]);
+    // The same order again is fine (nothing to change, still ok).
+    expect(await reorderPhotos(db, id, [c.id, a.id, b.id])).toEqual({ ok: true });
+  });
+
+  it('changes nothing unless the list is exactly the product’s photos, each once', async () => {
+    const id = await addProduct(db, { name: 'Гюто' });
+    const other = await addProduct(db, { name: 'Санто' });
+    const [a, b, c] = [await add(id, { seed: 0 }), await add(id, { seed: 1 }), await add(id, { seed: 2 })];
+    const theirs = await add(other, { seed: 5 });
+    const before = await positions(id);
+    for (const list of [[c.id, a.id], [c.id, a.id, b.id, 'ph_x'], [c.id, a.id, a.id], [c.id, a.id, theirs.id], []]) {
+      expect(await reorderPhotos(db, id, list)).toMatchObject({ ok: false });
+    }
+    expect(await positions(id)).toEqual(before);
+    expect(await positions(other)).toEqual([[theirs.id, 0]]);
   });
 });
 
